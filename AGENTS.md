@@ -189,8 +189,13 @@ npm run check
 Spark uses the built-in Node.js test runner for Git hook regression tests.
 The macOS GUI PATH cases require Node.js/npm installed in a standard location
 (`/opt/homebrew/bin` or `/usr/local/bin`) and are skipped on other platforms.
-Spark does not yet have browser tests or a generated API contract pipeline.
-The gate does not yet verify application behavior.
+Spark browser tests in `scripts/spark.test.mjs` use Playwright with the Node.js
+test runner and run through the existing `test` command. Run `npx playwright
+install chromium` once locally; CI installs Chromium and system dependencies
+before `check`. To use an installed Chrome locally, run
+`PLAYWRIGHT_CHANNEL=chrome npm run check`. The browser suite starts a temporary Next.js dev server on port
+3187, so stop any existing dev server for this checkout before running it.
+There is no generated API contract pipeline.
 When implementing behavior, add appropriate test tooling and meaningful tests,
 wire automated tests into `check` and CI, and update this section. Do not add a
 placeholder test command or claim tests passed when no tests exist. Add contract
