@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:gate": "eslint --max-warnings=0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --test scripts/*.test.mjs",
+    "check": "npm run test && npm run lint:gate && npm run typecheck && npm run build",
+    "precommit": "npm run lint:gate && npm run typecheck",
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "next": "16.3.4",

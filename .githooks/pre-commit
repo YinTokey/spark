@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+# GUI Git clients may omit Homebrew and the Node.js installer's bin directory.
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  PATH="${PATH:+$PATH:}/opt/homebrew/bin:/usr/local/bin"
+  export PATH
+fi
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  echo "Spark pre-commit: Node.js and npm are required. Add their bin directory to your Git client's PATH and retry." >&2
+  exit 1
+fi
+exec npm run precommit
