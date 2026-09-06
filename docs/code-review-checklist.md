@@ -42,3 +42,26 @@ require an explicit reason. Leave mechanical style checks to ESLint and TypeScri
 - Required checks passed on the final tree, or blockers are explicitly reported.
   Documentation-only changes follow the exception in `AGENTS.md`.
 - Relevant documentation and examples match changed behavior and commands.
+
+## Next.js-specific checks
+
+Apply these checks only to affected behavior. Verify version-sensitive advice
+against the installed documentation in `node_modules/next/dist/docs/`. Report
+findings based on concrete impact rather than pattern matching; assign severity
+using the P0/P1/P2 categories above.
+
+- **Caching and invalidation:** Confirm whether data should be cached, for how
+  long, and how mutations refresh it. Check that user-specific data cannot be
+  shared across users.
+- **Data-fetching efficiency:** Check for avoidable sequential requests and
+  unnecessary calls from Server Components to the application's own API routes.
+- **Loading and error boundaries:** Verify that route-level loading, Suspense,
+  and error boundaries cover slow or failing operations with useful recovery,
+  where applicable.
+- **Client bundle boundaries:** Check whether `"use client"` unnecessarily pulls
+  large dependencies or server-only work into the browser.
+- **Images and fonts:** Check image sizing, layout stability, appropriate loading
+  behavior, and font loading. Follow the installed version's guidance rather
+  than blanket rules about `priority`.
+- **Metadata:** Where relevant, verify page titles, descriptions, social previews,
+  and canonical URLs. Use dynamic metadata only when needed.
