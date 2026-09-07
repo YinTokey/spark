@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from './icon';
 
 const demoSteps = [
@@ -37,23 +37,4 @@ export function ActionButton({ variant }: { variant: 'demo' | 'access' }) {
       </>}
     </dialog>
   </>;
-}
-
-export function RevealMotion() {
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (media.matches || !('IntersectionObserver' in window)) return;
-    const elements = document.querySelectorAll<HTMLElement>('[data-reveal]');
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('revealed');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    elements.forEach((element) => { element.classList.add('will-reveal'); observer.observe(element); });
-    return () => { observer.disconnect(); elements.forEach((element) => element.classList.remove('will-reveal')); };
-  }, []);
-  return null;
 }
