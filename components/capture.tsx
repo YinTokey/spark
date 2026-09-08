@@ -1,19 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Necklace } from "./necklace";
+import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
+import SparkPrototype from "./spark/spark-prototype";
 import { useRecorder } from "./use-recorder";
 
 function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
 }
 
-export default function Capture() {
+function CaptureExperience() {
   const recording = useRecorder();
-  const [tab, setTab] = useState("Capture");
   const [playbackError, setPlaybackError] = useState(false);
-  const about = useRef<HTMLDialogElement>(null);
-  const aboutTrigger = useRef<HTMLButtonElement>(null);
   const { phase } = recording;
   const busy = phase === "requesting" || phase === "processing";
   const isRecording = phase === "recording";
@@ -26,16 +25,7 @@ export default function Capture() {
   }
 
   return (
-    <div className="experience">
-      <header className="header">
-        <a className="brand" href="#capture" aria-label="Spark home">SPARK <span>by PrepVid</span></a>
-        <nav className="navigation" aria-label="Main navigation">
-          {["Capture", "Record"].map(item => <button key={item} aria-pressed={tab === item} className={tab === item ? "selected" : ""} onClick={() => { setTab(item); if (item === "Record") document.getElementById("capture-panel")?.focus(); }}>{item}</button>)}
-          <button ref={aboutTrigger} onClick={() => about.current?.showModal()}>About</button>
-        </nav>
-        <p className="header-note">A little space for your next big idea.</p>
-      </header>
-
+    <>
       <main id="capture" className="hero">
         <section className="intro">
           <p className="eyebrow"><span /> YOUR IDEAS. UNINTERRUPTED.</p>
@@ -87,9 +77,23 @@ export default function Capture() {
         </section>
       </main>
       <footer className="footer"><span className="footer-index">01 — CAPTURE THE SPARK</span><p><span /> MORE TALKING. LESS TYPING.</p><span className="footer-right">Thought → possibility</span></footer>
-      <dialog ref={about} className="about-dialog" onClose={() => aboutTrigger.current?.focus()}>
-        <p className="state-label">MEET SPARK</p><h2>A home for your<br />half-formed thoughts.</h2><p>Press. Speak. Keep the spark. This interactive concept brings a wearable companion to your browser.</p><p>The microphone and audio playback are real. The necklace, battery and shaped idea are a demo. Audio is never uploaded or transcribed, and is discarded when you reset or leave the page.</p><form method="dialog"><button className="primary-button">Back to capturing</button></form>
-      </dialog>
+    </>
+  );
+}
+
+export default function Capture() {
+  const [tab, setTab] = useState("Capture");
+
+  return (
+    <div className="experience">
+      <header className="header">
+        <a className="brand" href="#capture" aria-label="Spark home">SPARK <span>by PrepVid</span></a>
+        <nav className="navigation" aria-label="Main navigation">
+          {captureNavigationItems.map(item => <button key={item} aria-pressed={tab === item} className={tab === item ? "selected" : ""} onClick={() => setTab(item)}>{item}</button>)}
+        </nav>
+        <p className="header-note">A little space for your next big idea.</p>
+      </header>
+      {isPhoneTab(tab) ? <main aria-label="Phone mock"><SparkPrototype /></main> : <CaptureExperience />}
     </div>
   );
 }

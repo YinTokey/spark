@@ -9,7 +9,7 @@
     "lint": "eslint",
     "lint:gate": "eslint --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test components/necklace/*.test.ts app/api/auth/route.test.ts",
+    "test": "node --test components/*.test.ts components/necklace/*.test.ts app/api/auth/route.test.ts",
     "check": "npm run test && npm run lint:gate && npm run typecheck && npm run build && npm run test:browser",
     "precommit": "npm run lint:gate && npm run typecheck",
     "prepare": "node scripts/install-hooks.mjs",
