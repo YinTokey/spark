@@ -5,6 +5,7 @@ import { Necklace } from "./necklace";
 import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
 import SparkPrototype from "./spark/spark-prototype";
 import { useRecorder } from "./use-recorder";
+import type { LibraryData } from "@/lib/spark-data";
 
 function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
@@ -81,7 +82,9 @@ function CaptureExperience() {
   );
 }
 
-export default function Capture() {
+export default function Capture({ initialLibrary: _initialLibrary, libraryError: _libraryError }: { initialLibrary?: LibraryData; libraryError: boolean }) {
+  void _initialLibrary;
+  void _libraryError;
   const [tab, setTab] = useState("Capture");
 
   return (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server.js';
 import { getSupabaseConfig } from '../../../lib/server/supabase.ts';
+import { readBoundedJson, readBoundedText } from '../../../lib/server/bounded-response.ts';
 
 const MAX_BODY_BYTES = 1_024;
 const MAX_UPSTREAM_BYTES = 16_384;
@@ -8,34 +9,6 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type AuthBody =
   | { mode: 'login'; email: string; password: string }
   | { mode: 'register'; email: string; confirmEmail: string; password: string };
-
-type BodyReadResult = { ok: true; text: string } | { ok: false };
-
-async function readBoundedBody(stream: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<BodyReadResult> {
-  if (!stream) return { ok: true, text: '' };
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let total = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      total += chunk.value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        return { ok: false };
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-    return { ok: true, text };
-  } catch {
-    return { ok: false };
-  } finally {
-    reader.releaseLock();
-  }
-}
 
 function errorResponse(error: string, status: number) {
   return NextResponse.json({ error }, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -68,16 +41,8 @@ function invalidInputMessage(value: unknown) {
 }
 
 async function readSmallJson(response: Response): Promise<Record<string, unknown> | null> {
-  const declaredLength = response.headers.get('content-length');
-  if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > MAX_UPSTREAM_BYTES)) return null;
-  const body = await readBoundedBody(response.body, MAX_UPSTREAM_BYTES);
-  if (!body.ok) return null;
-  try {
-    const value: unknown = JSON.parse(body.text);
-    return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
-  } catch {
-    return null;
-  }
+  const value = await readBoundedJson(response, MAX_UPSTREAM_BYTES);
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -88,7 +53,7 @@ export async function POST(request: NextRequest) {
   if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > MAX_BODY_BYTES)) return errorResponse('Request is too large.', 413);
 
   let parsed: unknown;
-  const incoming = await readBoundedBody(request.body, MAX_BODY_BYTES);
+  const incoming = await readBoundedText(request.body, MAX_BODY_BYTES);
   if (!incoming.ok) return errorResponse('Request is too large.', 413);
   try { parsed = JSON.parse(incoming.text); } catch { parsed = null; }
   const body = parseAuthBody(parsed);
