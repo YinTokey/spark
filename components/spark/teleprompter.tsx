@@ -60,10 +60,6 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
       <div className="record-toolbar">
         <button ref={closeButton} className="icon-button" aria-label="Close teleprompter" onClick={onClose}><Icon name="close" /></button>
         <button className={`icon-button ${active ? "is-playing" : ""}`} aria-label={active ? "Pause auto-scroll" : "Start auto-scroll"} disabled={seconds >= 600} onClick={() => setRunning(value => !value)}><Icon name={active ? "pause" : "play"} size={17} /></button>
-        <div className="toolbar-end">
-          <div className="record-time"><span className={active ? "record-dot live" : "record-dot"} /><span role="timer" aria-label="Rehearsal time">{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}</span></div>
-          <span className="demo-pill">DEMO</span>
-        </div>
       </div>
       <div className="prompt-overlay">
         <div className="prompt-window" ref={prompt} tabIndex={0} aria-label="Script to read">

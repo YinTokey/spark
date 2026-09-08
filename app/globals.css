@@ -366,17 +366,12 @@ h1, h2, h3, p { margin: 0; }
 .local-note { margin-top: 14px; font-size: 11px; color: #b5b9b1; text-align: center; }
 .recorder { flex: 1; display: flex; flex-direction: column; padding: 4px 16px 16px; color: #f2f2ec; }
 .camera-feed { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); background: #0a0b0a; }
-.record-toolbar { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 10px 0 12px; }
-.toolbar-end { display: flex; align-items: center; gap: 12px; }
+.record-toolbar { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 10px 0 12px; }
+.record-toolbar > .icon-button:first-child { position: absolute; left: 0; }
 .icon-button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #1e201dcc; color: #f2f2ec; }
 .icon-button.is-playing { background: #e5484d; color: #fff; }
 .icon-button:disabled { opacity: .5; cursor: default; }
 .icon-button svg { width: 18px; height: 18px; }
-.record-time { display: flex; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000000b3; }
-.record-dot { width: 8px; height: 8px; border-radius: 50%; background: #4b4f4a; }
-.record-dot.live { background: #e5484d; animation: record-pulse 1.2s ease-out infinite; }
-@keyframes record-pulse { 0% { box-shadow: 0 0 0 0 #e5484d55; } 100% { box-shadow: 0 0 0 8px #e5484d00; } }
-.demo-pill { padding: 3px 10px; border: 1px solid #ffffff40; border-radius: 999px; font-size: 9px; letter-spacing: .12em; color: #f2f2eccc; background: #0b0c0b66; }
 .prompt-overlay { position: relative; z-index: 1; height: 50%; display: flex; flex-direction: column; margin: 0 -16px; padding: 14px 16px 16px; background: rgba(8, 10, 8, 0.55); backdrop-filter: blur(2px); }
 .prompt-window { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 21px; line-height: 1.5; color: #f2f2ec; scrollbar-width: none; }
 .prompt-window::-webkit-scrollbar { display: none; }
