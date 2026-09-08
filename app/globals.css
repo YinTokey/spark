@@ -332,15 +332,8 @@ h1, h2, h3, p { margin: 0; }
 .linked-script small { display: block; margin-bottom: 3px; font-size: 10px; letter-spacing: .08em; color: #8a8f87; }
 .linked-script span { flex: 1; font-size: 14px; font-weight: 600; }
 .linked-script svg:last-child { width: 18px; height: 18px; color: #b5b9b1; }
-.script-status { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: #8a8f87; }
-.updated-meta { margin-top: 8px; font-size: 12px; color: #8a8f87; }
-.source-section { margin-top: 22px; }
-.source-section h2, .script-section h2 { margin-bottom: 10px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a8f87; }
-.source-card { border: 1px solid #e5e1d8; border-radius: 14px; overflow: hidden; }
-.source-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; }
-.source-row + .source-row { border-top: 1px solid #efebe2; }
-.source-row svg { width: 18px; height: 18px; color: #a4711f; }
 .script-section { margin-top: 24px; }
+.script-section h2 { margin-bottom: 10px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a8f87; }
 .script-section h2 span { text-transform: none; letter-spacing: 0; color: #b5b9b1; font-size: 11px; }
 .script-card { display: grid; gap: 16px; }
 .script-card h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 650; }
