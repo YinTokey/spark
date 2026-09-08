@@ -273,7 +273,8 @@ h1, h2, h3, p { margin: 0; }
 .phone-screen { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 46px; background: #fbfaf6; color: #20261f; }
 .iphone.dark-phone .phone-screen { background: #10120f; color: #f5f5f0; }
 .phone-screen svg { width: 24px; height: 24px; }
-.status-bar { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 15px 26px 0; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.status-bar { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 15px 26px 0; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.iphone.dark-phone .status-bar { text-shadow: 0 1px 3px #000000b3; }
 .dynamic-island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 112px; height: 29px; border-radius: 20px; background: #0b0b0b; }
 .dynamic-island i { display: block; width: 7px; height: 7px; border-radius: 50%; background: #1c2530; margin: 11px 0 0 86px; }
 .status-icons { display: flex; align-items: center; gap: 6px; }
@@ -364,31 +365,32 @@ h1, h2, h3, p { margin: 0; }
 .form-error { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f7e6e4; color: #9c2d2d; font-size: 13px; }
 .local-note { margin-top: 14px; font-size: 11px; color: #b5b9b1; text-align: center; }
 .recorder { flex: 1; display: flex; flex-direction: column; padding: 4px 16px 16px; color: #f2f2ec; }
-.record-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 12px; }
-.icon-button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #1e201d; color: #f2f2ec; }
+.camera-feed { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); background: #0a0b0a; }
+.record-toolbar { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 10px 0 12px; }
+.icon-button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #1e201dcc; color: #f2f2ec; }
 .icon-button svg { width: 18px; height: 18px; }
-.record-time { display: flex; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.record-time { display: flex; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000000b3; }
 .record-dot { width: 8px; height: 8px; border-radius: 50%; background: #4b4f4a; }
 .record-dot.live { background: #e5484d; animation: record-pulse 1.2s ease-out infinite; }
 @keyframes record-pulse { 0% { box-shadow: 0 0 0 0 #e5484d55; } 100% { box-shadow: 0 0 0 8px #e5484d00; } }
-.demo-pill { padding: 3px 10px; border: 1px solid #3a3d39; border-radius: 999px; font-size: 9px; letter-spacing: .12em; color: #9aa096; }
-.prompt-window { flex: 1; overflow-y: auto; padding: 10px 12px 40px; font-size: 21px; line-height: 1.5; color: #f2f2ec; scrollbar-width: none; }
+.demo-pill { padding: 3px 10px; border: 1px solid #ffffff40; border-radius: 999px; font-size: 9px; letter-spacing: .12em; color: #f2f2eccc; background: #0b0c0b66; }
+.prompt-overlay { position: relative; z-index: 1; height: 50%; display: flex; flex-direction: column; margin: 0 -16px; padding: 14px 16px 16px; background: rgba(8, 10, 8, 0.55); backdrop-filter: blur(2px); }
+.prompt-window { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 21px; line-height: 1.5; color: #f2f2ec; scrollbar-width: none; }
 .prompt-window::-webkit-scrollbar { display: none; }
 .prompt-window p { margin-bottom: 18px; }
 .prompt-hook { font-size: 24px; font-weight: 600; }
-.prompt-end { color: #9aa096; font-size: 16px; }
-.preview-placeholder { height: 88px; display: flex; align-items: center; gap: 12px; padding: 0 16px; margin-bottom: 12px; border: 1px dashed #3a3d39; border-radius: 14px; color: #9aa096; font-size: 12px; flex-shrink: 0; }
-.viewfinder { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; background: #1e201d; color: #f2f2ec; }
-.viewfinder svg { width: 26px; height: 26px; }
-.rehearsal-state { margin-bottom: 12px; text-align: center; font-size: 12px; color: #9aa096; }
+.prompt-end { color: #c9cec6; font-size: 16px; }
+.camera-fallback { position: relative; z-index: 1; margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(8, 10, 8, 0.6); font-size: 12px; color: #d8dcd4; }
+.record-bottom { position: relative; z-index: 2; margin-top: auto; padding: 16px 0 8px; background: linear-gradient(transparent, rgba(8, 10, 8, 0.72) 55%); }
+.rehearsal-state { margin-bottom: 12px; text-align: center; font-size: 12px; color: #d4d9d1; text-shadow: 0 1px 3px #000000b3; }
 .record-controls { display: flex; align-items: center; justify-content: center; gap: 22px; }
-.round-control { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid #3a3d39; border-radius: 50%; background: #1e201d; color: #f2f2ec; font-size: 14px; }
+.round-control { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid #ffffff40; border-radius: 50%; background: #1e201dcc; color: #f2f2ec; font-size: 14px; }
 .round-control svg { width: 20px; height: 20px; }
-.record-button { width: 64px; height: 64px; display: grid; place-items: center; border: 3px solid #f2f2ec; border-radius: 50%; background: transparent; }
+.record-button { width: 64px; height: 64px; display: grid; place-items: center; border: 3px solid #f2f2ec; border-radius: 50%; background: #0b0c0b33; }
 .record-button span { width: 46px; height: 46px; border-radius: 50%; background: #e5484d; transition: border-radius .2s; }
 .record-button.is-recording span { border-radius: 12px; }
 .record-button:disabled { opacity: .5; cursor: default; }
-.demo-notice { margin-top: 12px; text-align: center; font-size: 10px; color: #6b706a; }
+.demo-notice { margin-top: 12px; text-align: center; font-size: 10px; color: #b6bcb2; text-shadow: 0 1px 2px #000000b3; }
 .home-indicator { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 130px; height: 5px; border-radius: 3px; background: #0b0b0b; }
 .iphone.dark-phone .home-indicator { background: #ffffffcc; }
 .prototype-caption { display: flex; align-items: center; gap: 8px; color: #7c8078; font-size: 11px; letter-spacing: .08em; }
