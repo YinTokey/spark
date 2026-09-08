@@ -50,6 +50,8 @@ test('non-empty hints without searchable terms do not return unrelated recent id
 
   assert.deepEqual(await repository.findRecentIdeas(since, 'the'), []);
   assert.deepEqual(await repository.findRecentIdeas(since, '✨!!'), []);
+  assert.deepEqual(await repository.findRecentIdeas(since, '   '), []);
+  assert.deepEqual(await repository.findRecentIdeas(since, '\n\t'), []);
 });
 
 test('rejects an oversized or malformed PostgREST response', async () => {
