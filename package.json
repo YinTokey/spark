@@ -9,16 +9,18 @@
     "lint": "eslint",
     "lint:gate": "eslint --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test components/*.test.ts components/necklace/*.test.ts app/api/auth/route.test.ts",
+    "test": "node --test components/*.test.ts components/necklace/*.test.ts components/spark/*.test.ts app/api/auth/route.test.ts app/api/capture/route.test.ts app/api/ideas/route.test.ts lib/*.test.ts lib/server/*.test.ts",
     "check": "npm run test && npm run lint:gate && npm run typecheck && npm run build && npm run test:browser",
     "precommit": "npm run lint:gate && npm run typecheck",
     "prepare": "node scripts/install-hooks.mjs",
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@openai/agents": "^0.17.2",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
