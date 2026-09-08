@@ -9,10 +9,11 @@
     "lint": "eslint",
     "lint:gate": "eslint --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test scripts/*.test.mjs",
-    "check": "npm run test && npm run lint:gate && npm run typecheck && npm run build",
+    "test": "node --test components/necklace/*.test.ts",
+    "check": "npm run test && npm run lint:gate && npm run typecheck && npm run build && npm run test:browser",
     "precommit": "npm run lint:gate && npm run typecheck",
-    "prepare": "node scripts/install-hooks.mjs"
+    "prepare": "node scripts/install-hooks.mjs",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "next": "16.3.4",
@@ -20,6 +21,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
