@@ -54,19 +54,12 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
     prompt.current?.scrollTo(0, 0);
   }
 
-  function scrollScript(amount: number) {
-    prompt.current?.scrollBy({ top: amount, behavior: "smooth" });
-  }
-
   return (
     <section className="recorder" aria-label="Teleprompter rehearsal" onKeyDown={event => { if (event.key === "Escape") onClose(); }}>
       <video ref={video} className="camera-feed" autoPlay playsInline muted aria-hidden="true" />
       <div className="record-toolbar">
         <button ref={closeButton} className="icon-button" aria-label="Close teleprompter" onClick={onClose}><Icon name="close" /></button>
-        <div className="scroll-controls">
-          <button className="icon-button" aria-label="Scroll script up" onClick={() => scrollScript(-90)}>↑</button>
-          <button className="icon-button" aria-label="Scroll script down" onClick={() => scrollScript(90)}>↓</button>
-        </div>
+        <button className={`icon-button ${active ? "is-playing" : ""}`} aria-label={active ? "Pause auto-scroll" : "Start auto-scroll"} disabled={seconds >= 600} onClick={() => setRunning(value => !value)}><Icon name={active ? "pause" : "play"} size={17} /></button>
         <div className="toolbar-end">
           <div className="record-time"><span className={active ? "record-dot live" : "record-dot"} /><span role="timer" aria-label="Rehearsal time">{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}</span></div>
           <span className="demo-pill">DEMO</span>
@@ -85,7 +78,6 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
         <p className="rehearsal-state" role="status">{seconds >= 600 ? "Rehearsal complete. Reset to begin again." : active ? "Rehearsing…" : seconds > 0 ? "Paused. Take your time." : "Take a breath. Make it yours."}</p>
         <div className="record-controls">
           <button className="round-control" aria-label="Reading speed" onClick={() => setSpeed(value => value >= 2 ? 0.75 : value + 0.25)}>{speed}×</button>
-          <button className={`record-button ${active ? "is-recording" : ""}`} aria-label={active ? "Pause rehearsal" : "Start rehearsal"} disabled={seconds >= 600} onClick={() => setRunning(value => !value)}><span /></button>
           <button className="round-control" aria-label="Reset rehearsal" onClick={reset}><Icon name="reset" size={21} /></button>
         </div>
         <p className="demo-notice">Live preview · Nothing is recorded or saved</p>
