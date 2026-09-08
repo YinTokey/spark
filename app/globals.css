@@ -124,6 +124,69 @@ h1, h2, h3, p { margin: 0; }
 .spark-dialog .pill-button { font-size: 16px; padding: 14px 24px; min-width: 170px; gap: 16px; margin-top: 10px; }
 .spark-dialog .pill-button svg { width: 22px; height: 22px; }
 .spark-dialog small { display: block; margin-top: 22px; font-size: 11px; color: #7f8186; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: min(300px, 100%); margin: 28px auto 26px; padding: 4px; border-radius: 999px; background: #ebeae4; }
+.auth-tabs button { min-height: 42px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; }
+.auth-tabs button.active { background: var(--paper); color: var(--foreground); box-shadow: 0 1px 4px #07101918; }
+.auth-copy { margin: 12px 0 24px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.auth-form { display: grid; text-align: left; }
+.auth-form label { margin: 14px 4px 7px; color: #3e473c; font-size: 13px; font-weight: 650; }
+.auth-form input { width: 100%; min-height: 50px; padding: 0 16px; border: 1px solid #ced1c9; border-radius: 13px; background: var(--paper); color: var(--foreground); font: inherit; outline: 0; }
+.auth-form input:focus { border-color: var(--moss); box-shadow: 0 0 0 3px #4855421f; }
+.auth-form input:disabled, .auth-form .pill-button:disabled { cursor: wait; opacity: .65; }
+.auth-form .pill-button { width: 100%; margin-top: 20px; }
+.auth-feedback { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.4; text-align: center; }
+.auth-feedback.error { color: #9c2d2d; }
+
+/* Existing authenticated capture experience. Scoped to avoid changing the landing page. */
+.experience { min-height: 100svh; background: #f4f1eb; color: #151814; }
+.experience .header { height: 78px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 34px; border-bottom: 1px solid #d9d6cf; }
+.experience .brand { display: block; color: #1a1d18; font-size: 20px; font-weight: 750; letter-spacing: .08em; }
+.experience .brand span { display: inline; margin-left: 8px; color: #74796f; font-size: 10px; letter-spacing: .08em; text-shadow: none; }
+.experience .navigation { display: flex; gap: 24px; }
+.experience .navigation button { padding: 8px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #6b7068; font-size: 13px; }
+.experience .navigation button.selected { border-color: #1a1d18; color: #1a1d18; }
+.header-note { justify-self: end; color: #7b8078; font-size: 12px; }
+.experience .hero { min-height: calc(100svh - 122px); display: grid; grid-template-columns: 31% 34% 35%; overflow: hidden; background: radial-gradient(circle at 50% 40%, #fff 0, #f7f4ee 45%, #ece7dd 100%); }
+.experience .intro { display: flex; flex-direction: column; justify-content: center; padding: 7vw 2vw 5vw 3.5vw; }
+.experience .eyebrow { display: flex; align-items: center; gap: 12px; color: #6d716b; font-size: 10px; letter-spacing: .18em; }
+.experience .eyebrow span { width: 38px; height: 1px; background: #1c201b; }
+.experience .intro h1 { margin-top: 32px; font-size: clamp(42px, 4vw, 68px); line-height: 1.02; letter-spacing: -.055em; font-weight: 590; }
+.intro-copy { margin-top: 28px; color: #737872; font-size: clamp(19px, 1.6vw, 28px); line-height: 1.35; }
+.intro-foot { display: flex; align-items: flex-start; gap: 12px; margin-top: auto; color: #737872; font-size: 12px; line-height: 1.5; }
+.tiny-spark { color: #343b31; font-size: 20px; }
+.product-stage { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; }
+.necklace { position: relative; width: min(92%, 520px); height: 100%; display: flex; justify-content: center; }
+.necklace > img { width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.pendant-button { position: absolute; top: 50%; right: 10%; width: 16%; height: 18%; border: 0; background: transparent; }
+.button-ring, .pendant-led { display: none; }
+.press-note { position: absolute; top: 48%; right: -5%; display: flex; align-items: center; color: #383d35; font-family: "Bradley Hand", cursive; font-size: 18px; transform: rotate(-5deg); }
+.press-note svg { width: 64px; height: 48px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.product-caption { position: absolute; bottom: 26px; left: 0; right: 0; display: flex; justify-content: space-between; color: #7c8078; font-size: 9px; letter-spacing: .12em; }
+.capture-panel { align-self: center; width: calc(100% - 42px); max-height: calc(100svh - 145px); min-height: 590px; margin-right: 30px; display: flex; flex-direction: column; overflow: auto; border: 1px solid #e3dfd7; border-radius: 28px; background: #fffefbe8; box-shadow: 0 28px 80px #42483d14; }
+.panel-top { display: flex; justify-content: space-between; padding: 28px 34px; color: #626861; font-size: 13px; }
+.panel-top > span { display: flex; align-items: center; gap: 10px; }
+.green-dot, .red-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #20c85b; }
+.red-dot { background: #d84848; }
+.experience .battery svg { width: 26px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.experience .battery-fill { fill: currentColor; stroke: none; }
+.ready-content, .recording-content, .processing-content, .result-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 44px 34px; text-align: center; }
+.experience .orb { width: 152px; height: 152px; display: grid; place-items: center; margin-bottom: 28px; border: 1px solid #ece9e2; border-radius: 50%; background: #fff; }
+.sound-mark { height: 62px; display: flex; align-items: center; gap: 5px; }
+.sound-mark i { width: 4px; border-radius: 4px; background: #171b16; }
+.state-label { color: #7b8078; font-size: 9px; font-weight: 700; letter-spacing: .18em; }
+.capture-panel h2 { margin-top: 12px; font-size: clamp(26px, 2.2vw, 38px); line-height: 1.15; letter-spacing: -.04em; }
+.panel-copy { margin-top: 24px; color: #7a7f78; font-size: 17px; line-height: 1.45; }
+.experience .text-button { margin-top: 22px; padding: 8px; border: 0; background: transparent; color: #465143; font-size: 13px; text-decoration: underline; text-underline-offset: 5px; }
+.experience .primary-button { min-height: 46px; margin-top: 20px; padding: 0 24px; border: 0; border-radius: 999px; background: #485542; color: white; font-weight: 650; }
+.panel-bottom { padding: 16px 28px; border-top: 1px solid #ece9e2; color: #858981; font-size: 10px; }
+.panel-bottom svg { width: 14px; height: 14px; margin-right: 7px; vertical-align: middle; fill: none; stroke: currentColor; }
+.experience .footer { height: 44px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 34px; border-top: 1px solid #d9d6cf; color: #747970; font-size: 9px; letter-spacing: .12em; }
+.experience .footer p span { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: #62695c; }
+.footer-right { justify-self: end; }
+.about-dialog { width: min(500px, calc(100% - 32px)); padding: 40px; border: 0; border-radius: 24px; color: #252a23; }
+.about-dialog::backdrop { background: #10150e80; backdrop-filter: blur(8px); }
+.about-dialog h2 { margin: 14px 0 20px; font-size: 38px; line-height: 1.1; }
+.about-dialog > p:not(.state-label) { margin-top: 14px; color: #6c7269; line-height: 1.6; }
 
 @media (max-width: 1279px) {
   .steps-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 24px; }
@@ -135,7 +198,8 @@ h1, h2, h3, p { margin: 0; }
   .site-header { width: calc(100% - 40px); height: 76px; }
   .brand strong { font-size: 36px; }
   .brand span { margin-top: 5px; font-size: 11px; }
-  .hero-photo { object-position: 30% center; }
+  .hero-photo { object-position: 15% center; }
+  .site-header .brand { padding: 8px 10px; border-radius: 10px; background: #17201642; backdrop-filter: blur(5px); }
   .hero-visual::after { background: linear-gradient(0deg, var(--paper) 0%, #fffdf8f0 24%, #fffdf8c7 47%, transparent 72%); }
   .hero-copy { top: auto; right: 24px; bottom: max(48px, 8svh); left: 24px; transform: none; width: auto; }
   .hero-eyebrow { margin-bottom: 12px; font-size: 10px; }
@@ -162,6 +226,18 @@ h1, h2, h3, p { margin: 0; }
   .closing-copy .pill-button { margin-top: 20px; }
   .benefits { margin-top: 24px; max-width: 320px; }
   .closing-wordmark { left: 24px; }
+  .spark-dialog { padding: 38px 22px 28px; }
+  .experience .header { grid-template-columns: 1fr auto; height: 68px; padding: 0 20px; }
+  .experience .navigation { gap: 14px; }
+  .header-note { display: none; }
+  .experience .hero { min-height: auto; grid-template-columns: 1fr; overflow: visible; }
+  .experience .intro { min-height: 430px; padding: 70px 24px 36px; }
+  .experience .intro h1 { font-size: 44px; }
+  .product-stage { min-height: 580px; }
+  .necklace { width: min(88%, 430px); }
+  .capture-panel { width: calc(100% - 32px); min-height: 560px; max-height: none; margin: 0 16px 32px; }
+  .ready-content, .recording-content, .processing-content, .result-content { padding-inline: 24px; }
+  .experience .footer { display: none; }
 }
 @media (max-height: 550px) and (min-width: 768px) {
   .site-header { height: 64px; }

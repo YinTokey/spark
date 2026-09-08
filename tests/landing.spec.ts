@@ -13,22 +13,118 @@ test('renders the complete Spark story and stays within the viewport', async ({ 
   await expect(page.getByText('A wearable AI companion for creators.')).toHaveCount(0);
 });
 
-test('demo progresses, restarts, closes with Escape and restores focus', async ({ page }) => {
+test('Try the demo opens login and validates email and password locally', async ({ page }) => {
+  let authRequests = 0;
+  await page.route('**/api/auth', async route => {
+    authRequests += 1;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
   await page.goto('/');
   const trigger = page.getByRole('button', { name: 'Try the demo', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('heading', { name: 'Press the side button' })).toBeVisible();
-  for (const title of ['Speak naturally', 'AI shapes your ideas', 'Turn into videos']) {
-    await dialog.getByRole('button', { name: 'Next step' }).click();
-    await expect(dialog.getByRole('heading', { name: title, exact: true })).toBeVisible();
-  }
-  await dialog.getByRole('button', { name: 'Try again' }).click();
-  await expect(dialog.getByRole('heading', { name: 'Press the side button' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Welcome to Spark.' })).toBeVisible();
+  await dialog.getByLabel('Email').fill('not-an-email');
+  await dialog.getByLabel('Password').fill('secret1');
+  await dialog.locator('form').getByRole('button', { name: 'Log in' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Enter a valid email address.');
+  expect(authRequests).toBe(0);
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(trigger).toBeFocused();
+});
+
+test('login errors keep the popup open', async ({ page }) => {
+  await page.route('**/api/auth', async route => {
+    await route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: 'Too many attempts. Please wait and try again.' }) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Email').fill('creator@example.com');
+  await dialog.getByLabel('Password').fill('secret1');
+  await dialog.locator('form').getByRole('button', { name: 'Log in' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Too many attempts. Please wait and try again.');
+  await expect(dialog).toBeVisible();
+});
+
+test('register requires matching email addresses before submitting', async ({ page }) => {
+  let authRequests = 0;
+  await page.route('**/api/auth', async route => {
+    authRequests += 1;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Register' }).click();
+  await dialog.getByLabel('Email', { exact: true }).fill('creator@example.com');
+  await dialog.getByLabel('Confirm email').fill('other@example.com');
+  await dialog.getByLabel('Password').fill('secret1');
+  await dialog.locator('form').getByRole('button', { name: 'Create account' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Email addresses do not match.');
+  expect(authRequests).toBe(0);
+});
+
+test('successful password login requests the existing home page', async ({ page }) => {
+  await page.route('**/api/auth', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Email').fill('creator@example.com');
+  await dialog.getByLabel('Password').fill('secret1');
+  const homeRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/home');
+  await dialog.locator('form').getByRole('button', { name: 'Log in' }).click();
+  await homeRequest;
+});
+
+test('home redirects visitors without a verified Supabase session', async ({ page }) => {
+  await page.goto('/home');
+  await expect(page).toHaveURL('/');
+});
+
+test('closing the popup cancels a stale login request and clears credentials', async ({ page }) => {
+  let releaseResponse = () => {};
+  let markRequested = () => {};
+  const requested = new Promise<void>(resolve => { markRequested = resolve; });
+  const responseReleased = new Promise<void>(resolve => { releaseResponse = resolve; });
+  await page.route('**/api/auth', async route => {
+    markRequested();
+    await responseReleased;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Try the demo', exact: true });
+  await trigger.click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Email').fill('creator@example.com');
+  await dialog.getByLabel('Password').fill('secret1');
+  await dialog.locator('form').getByRole('button', { name: 'Log in' }).click();
+  await requested;
+  await page.keyboard.press('Escape');
+  releaseResponse();
+  await expect(page).toHaveURL('/');
+  await trigger.click();
+  await expect(dialog.getByLabel('Email')).toHaveValue('');
+  await expect(dialog.getByLabel('Password')).toHaveValue('');
+});
+
+test('auth endpoint rejects malformed and cross-site submissions', async ({ request }) => {
+  const malformed = await request.post('/api/auth', {
+    data: { mode: 'register', email: 'not-an-email', confirmEmail: 'not-an-email', password: 'secret1' },
+  });
+  expect(malformed.status()).toBe(400);
+  await expect(malformed.json()).resolves.toEqual({ error: 'Register with a valid email and a password of at least 6 characters.' });
+
+  const crossSite = await request.post('/api/auth', {
+    headers: { Origin: 'https://example.com' },
+    data: { mode: 'login', email: 'creator@example.com', password: 'secret1' },
+  });
+  expect(crossSite.status()).toBe(403);
+  await expect(crossSite.json()).resolves.toEqual({ error: 'Request not allowed.' });
 });
 
 test('content remains usable with reduced motion', async ({ page }) => {
@@ -56,7 +152,7 @@ test('section four presents five image-led ideas without supporting copy', async
   const cards = gallery.locator('.moments-grid article');
   await expect(cards).toHaveCount(5);
   await expect(cards.locator('p')).toHaveCount(0);
-  await expect(cards).toHaveCSS('border-radius', '20px');
+  await expect(cards.first()).toHaveCSS('border-radius', '20px');
 
   const expectedCards = [
     { heading: 'Walk. Think. Create.', image: '1-0.webp' },

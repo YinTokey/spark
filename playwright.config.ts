@@ -5,8 +5,8 @@ export default defineConfig({
   fullyParallel: true,
   use: { baseURL: 'http://127.0.0.1:3101', trace: 'retain-on-failure' },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 960 } } },
-    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], channel: process.env.PLAYWRIGHT_CHANNEL, viewport: { width: 1440, height: 960 } } },
+    { name: 'mobile', use: { ...devices['iPhone 13'], channel: process.env.PLAYWRIGHT_CHANNEL, defaultBrowserType: 'chromium' } },
   ],
   webServer: {
     command: 'npm run start -- --hostname 127.0.0.1 --port 3101',
