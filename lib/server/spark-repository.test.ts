@@ -39,6 +39,19 @@ test('recent ideas are user-scoped by bearer token, one-hour cutoff, and local h
   assert.equal(new Headers(fetchMock.mock.calls[0].arguments[1]?.headers).get('Authorization'), 'Bearer user-token');
 });
 
+test('non-empty hints without searchable terms do not return unrelated recent ideas', async () => {
+  configureSupabase();
+  mock.method(globalThis, 'fetch', async () => Response.json([
+    idea(OTHER_ID, 'Plan a kitchen renovation', '2026-09-08T03:50:00.000Z'),
+    idea(FOCUS_NEW_ID, 'Focus rituals for a productive workday', '2026-09-08T03:40:00.000Z'),
+  ]));
+  const repository = createSparkRepository('user-token');
+  const since = new Date('2026-09-08T04:00:00.000Z');
+
+  assert.deepEqual(await repository.findRecentIdeas(since, 'the'), []);
+  assert.deepEqual(await repository.findRecentIdeas(since, '✨!!'), []);
+});
+
 test('rejects an oversized or malformed PostgREST response', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => new Response('[]', { headers: { 'content-length': 'invalid' } }));

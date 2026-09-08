@@ -90,7 +90,8 @@ export function createSparkRepository(token: string) {
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     const newestFirst = [...parsed.data].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
     const tokens = hintTokens(hint);
-    if (tokens.length === 0) return newestFirst.slice(0, MAX_RECENT_RESULTS).map((row) => toIdea(row));
+    if (hint.trim().length === 0) return newestFirst.slice(0, MAX_RECENT_RESULTS).map((row) => toIdea(row));
+    if (tokens.length === 0) return [];
     return newestFirst
       .map((row) => ({ row, score: hintTokens(row.transcript).some((token) => tokens.includes(token)) ? 1 : 0 }))
       .filter(({ score }) => score > 0)
