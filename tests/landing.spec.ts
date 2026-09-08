@@ -86,6 +86,28 @@ test('home redirects visitors without a verified Supabase session', async ({ pag
   await expect(page).toHaveURL('/');
 });
 
+test('necklace artwork preserves its intrinsic aspect ratio', async ({ page }) => {
+  await page.goto('/');
+  const dimensions = await page.evaluate(async () => {
+    const host = document.createElement('div');
+    host.style.cssText = 'width: 520px; height: 600px';
+    const necklace = document.createElement('div');
+    necklace.className = 'necklace';
+    const image = document.createElement('img');
+    image.src = '/necklace.svg';
+    image.width = 520;
+    image.height = 850;
+    necklace.append(image);
+    host.append(necklace);
+    document.body.append(host);
+    await image.decode();
+    const bounds = image.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height };
+  });
+
+  expect(dimensions.width / dimensions.height).toBeCloseTo(520 / 850, 2);
+});
+
 test('closing the popup cancels a stale login request and clears credentials', async ({ page }) => {
   let releaseResponse = () => {};
   let markRequested = () => {};

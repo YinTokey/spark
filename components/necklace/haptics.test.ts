@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ARMING_BUZZ_MS, STOPPING_BUZZ_MS } from "./recorderMachine.ts";
 import {
+  activatePendant,
   START_BUZZ_PATTERN,
   STOP_BUZZ_PATTERN,
   patternDurationMs,
@@ -71,4 +72,16 @@ test("scheduleBuzz starts an oscillator per tone per pulse", () => {
 
 test("vibrateDevice does not throw when navigator.vibrate is absent", () => {
   assert.doesNotThrow(() => vibrateDevice(START_BUZZ_PATTERN));
+});
+
+test("activatePendant buzzes once for start, twice for stop, and invokes the action", () => {
+  const calls: { actions: number; patterns: number[][] } = { actions: 0, patterns: [] };
+  const onPress = () => { calls.actions += 1; };
+  const buzz = (pattern: number[]) => { calls.patterns.push(pattern); };
+
+  activatePendant(false, onPress, buzz);
+  activatePendant(true, onPress, buzz);
+
+  assert.equal(calls.actions, 2);
+  assert.deepEqual(calls.patterns, [[180], [90, 80, 90]]);
 });

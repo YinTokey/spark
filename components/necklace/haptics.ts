@@ -58,3 +58,12 @@ export function vibrateDevice(pattern: BuzzPattern): void {
     }
   }
 }
+
+export function activatePendant(
+  recording: boolean,
+  onPress: () => void,
+  buzz: (pattern: BuzzPattern) => void = vibrateDevice,
+): void {
+  buzz(recording ? STOP_BUZZ_PATTERN : START_BUZZ_PATTERN);
+  onPress();
+}
