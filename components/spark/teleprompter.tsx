@@ -63,8 +63,14 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
       <video ref={video} className="camera-feed" autoPlay playsInline muted aria-hidden="true" />
       <div className="record-toolbar">
         <button ref={closeButton} className="icon-button" aria-label="Close teleprompter" onClick={onClose}><Icon name="close" /></button>
-        <div className="record-time"><span className={active ? "record-dot live" : "record-dot"} /><span role="timer" aria-label="Rehearsal time">{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}</span></div>
-        <span className="demo-pill">DEMO</span>
+        <div className="scroll-controls">
+          <button className="icon-button" aria-label="Scroll script up" onClick={() => scrollScript(-90)}>↑</button>
+          <button className="icon-button" aria-label="Scroll script down" onClick={() => scrollScript(90)}>↓</button>
+        </div>
+        <div className="toolbar-end">
+          <div className="record-time"><span className={active ? "record-dot live" : "record-dot"} /><span role="timer" aria-label="Rehearsal time">{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}</span></div>
+          <span className="demo-pill">DEMO</span>
+        </div>
       </div>
       <div className="prompt-overlay">
         <div className="prompt-window" ref={prompt} tabIndex={0} aria-label="Script to read">
@@ -78,8 +84,6 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
       <div className="record-bottom">
         <p className="rehearsal-state" role="status">{seconds >= 600 ? "Rehearsal complete. Reset to begin again." : active ? "Rehearsing…" : seconds > 0 ? "Paused. Take your time." : "Take a breath. Make it yours."}</p>
         <div className="record-controls">
-          <button className="round-control" aria-label="Scroll script up" onClick={() => scrollScript(-90)}>↑</button>
-          <button className="round-control" aria-label="Scroll script down" onClick={() => scrollScript(90)}>↓</button>
           <button className="round-control" aria-label="Reading speed" onClick={() => setSpeed(value => value >= 2 ? 0.75 : value + 0.25)}>{speed}×</button>
           <button className={`record-button ${active ? "is-recording" : ""}`} aria-label={active ? "Pause rehearsal" : "Start rehearsal"} disabled={seconds >= 600} onClick={() => setRunning(value => !value)}><span /></button>
           <button className="round-control" aria-label="Reset rehearsal" onClick={reset}><Icon name="reset" size={21} /></button>
