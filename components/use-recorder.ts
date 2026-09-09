@@ -1,35 +1,81 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { uploadCapture, type CaptureUploadResult } from "./capture-client";
+import { initialPhase, reducePhase } from "./capture-machine";
 
-type Phase = "ready" | "requesting" | "recording" | "processing" | "done" | "error";
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_SECONDS = 60;
 
-export function useRecorder() {
-  const [phase, setPhase] = useState<Phase>("ready");
+export function useRecorder(options: { onCreated?: (result: CaptureUploadResult) => void } = {}) {
+  const [phase, dispatch] = useReducer(reducePhase, initialPhase);
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>(Array(32).fill(4));
   const [audioUrl, setAudioUrl] = useState("");
+  const [result, setResult] = useState<CaptureUploadResult | null>(null);
+
   const session = useRef(0);
   const release = useRef<() => void>(() => {});
   const stopRecording = useRef<() => void>(() => {});
+  const blob = useRef<Blob | null>(null);
+  const abortUpload = useRef<AbortController | null>(null);
+  const onCreated = useRef(options.onCreated);
+  useEffect(() => { onCreated.current = options.onCreated; });
 
   useEffect(() => () => {
     session.current += 1;
+    abortUpload.current?.abort();
     release.current();
   }, []);
 
   function reset() {
     session.current += 1;
+    abortUpload.current?.abort();
+    abortUpload.current = null;
     release.current();
     release.current = () => {};
     stopRecording.current = () => {};
+    blob.current = null;
     setAudioUrl("");
     setSeconds(0);
     setError("");
-    setPhase("ready");
+    setResult(null);
+    dispatch({ type: "RESET" });
+  }
+
+  function upload(blobData: Blob) {
+    const controller = new AbortController();
+    abortUpload.current = controller;
+    const id = session.current;
+    uploadCapture(blobData, controller.signal)
+      .then(captureResult => {
+        if (session.current !== id) return;
+        setResult(captureResult);
+        if (captureResult.kind === "error") {
+          setError(captureResult.message);
+          dispatch({ type: "FAILED" });
+          return;
+        }
+        dispatch({ type: "SUCCEEDED" });
+        onCreated.current?.(captureResult);
+      })
+      .catch(() => {
+        // AbortError is the only thrown failure and signals reset or unmount.
+        if (session.current !== id) return;
+        setError("Could not reach Spark. Check your connection and try again.");
+        dispatch({ type: "FAILED" });
+      });
+  }
+
+  function retryUpload() {
+    if (phase !== "error") return;
+    if (blob.current) {
+      dispatch({ type: "RETRY" });
+      upload(blob.current);
+    } else {
+      void start();
+    }
   }
 
   async function start() {
@@ -37,15 +83,14 @@ export function useRecorder() {
     const id = session.current;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !window.AudioContext) {
       setError("Use a current browser on HTTPS or localhost to record audio.");
-      setPhase("error");
+      dispatch({ type: "FAILED" });
       return;
     }
-    setPhase("requesting");
+    dispatch({ type: "REQUESTED" });
     let stream: MediaStream | undefined;
     let recorder: MediaRecorder | undefined;
     let context: AudioContext | undefined;
     let ticker: ReturnType<typeof setInterval> | undefined;
-    let finishTimer: ReturnType<typeof setTimeout> | undefined;
     let url = "";
     let chunks: Blob[] = [];
     let size = 0;
@@ -66,7 +111,6 @@ export function useRecorder() {
     }, 20000);
     release.current = () => {
       clearTimeout(permissionTimer);
-      clearTimeout(finishTimer);
       clearMedia();
       chunks = [];
       if (url) URL.revokeObjectURL(url);
@@ -76,7 +120,7 @@ export function useRecorder() {
       session.current += 1;
       release.current();
       setError(message);
-      setPhase("error");
+      dispatch({ type: "FAILED" });
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -102,26 +146,26 @@ export function useRecorder() {
       });
       recorder.onstop = () => {
         if (!current()) return;
-        const blob = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
+        const blobData = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
         clearMedia();
         chunks = [];
-        if (!blob.size) { fail("No audio was captured. Try recording again."); return; }
-        url = URL.createObjectURL(blob);
+        if (!blobData.size) { fail("No audio was captured. Try recording again."); return; }
+        blob.current = blobData;
+        url = URL.createObjectURL(blobData);
         setAudioUrl(url);
-        setPhase("processing");
-        finishTimer = setTimeout(() => { if (current()) setPhase("done"); }, 1600);
+        upload(blobData);
       };
       const startedAt = Date.now();
       stopRecording.current = () => {
         if (current() && recorder?.state === "recording") {
           clearInterval(ticker);
-          setPhase("processing");
+          dispatch({ type: "STOPPED" });
           recorder.stop();
           stream?.getTracks().forEach(track => { track.onended = null; track.stop(); });
         }
       };
       recorder.start(250);
-      setPhase("recording");
+      dispatch({ type: "RECORDING" });
       ticker = setInterval(() => {
         if (!current()) return;
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
@@ -137,5 +181,5 @@ export function useRecorder() {
     }
   }
 
-  return { phase, error, seconds, levels, audioUrl, start, stop: () => stopRecording.current(), reset };
+  return { phase, error, seconds, levels, audioUrl, result, start, stop: () => stopRecording.current(), reset, retryUpload };
 }

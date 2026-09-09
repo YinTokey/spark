@@ -11,10 +11,10 @@ function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
 }
 
-function CaptureExperience() {
+function CaptureExperience({ onViewScript }: { onViewScript: () => void }) {
   const recording = useRecorder();
   const [playbackError, setPlaybackError] = useState(false);
-  const { phase } = recording;
+  const { phase, result } = recording;
   const busy = phase === "requesting" || phase === "processing";
   const isRecording = phase === "recording";
   const elapsed = `00:${String(recording.seconds).padStart(2, "0")}`;
@@ -48,7 +48,7 @@ function CaptureExperience() {
             <div aria-live="polite"><p className="state-label">{phase === "requesting" ? "ONE LITTLE PERMISSION" : phase === "error" ? "LET’S TRY THAT AGAIN" : "A THOUGHT WORTH KEEPING"}</p>
               <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? "Check your microphone." : "Ready when you are."}</h2></div>
             {phase === "error" ? <p className="error-message" role="alert">{recording.error}</p> : <p className="panel-copy">{phase === "requesting" ? "Allow microphone access in your browser to start capturing." : <>An idea just hit you?<br />Press the side button and start talking.</>}</p>}
-            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : <button className="text-button" onClick={() => void recording.start()}>{phase === "error" ? "Try microphone again" : "Or try it here"} <span aria-hidden="true">↗</span></button>}
+            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : <button className="text-button" onClick={phase === "error" ? recording.retryUpload : () => void recording.start()}>{phase === "error" ? "Try again" : "Or try it here"} <span aria-hidden="true">↗</span></button>}
           </div>}
 
           {isRecording && <div className="recording-content">
@@ -60,21 +60,29 @@ function CaptureExperience() {
             <p className="small-note">Up to 60 seconds. Just enough for a spark.</p>
           </div>}
 
-          {phase === "processing" && <div className="processing-content" role="status"><div className="orb"><span className="spinner" /></div><p className="state-label">CONNECTING THE DOTS</p><h2>Shaping your idea.</h2><p className="panel-copy">A little clarity is on its way.</p><p className="small-note">Previewing the demo result…</p><button className="text-button" onClick={recording.reset}>Cancel</button></div>}
+          {phase === "processing" && <div className="processing-content" role="status"><div className="orb"><span className="spinner" /></div><p className="state-label">CONNECTING THE DOTS</p><h2>Shaping your idea.</h2><p className="panel-copy">Transcribing your recording and shaping it into something useful.</p><p className="small-note">This usually takes a few seconds…</p><button className="text-button" onClick={recording.reset}>Cancel</button></div>}
 
-          {phase === "done" && <div className="result-content">
-            <div className="result-heading"><span className="checkmark">✓</span><h2>Your idea, shaped.</h2><span>{elapsed}</span></div>
-            <p className="example-label">Example result · not a transcription</p>
-            <h3>AI coding is becoming AI management.</h3>
-            <p className="result-copy">Developers are spending less time writing code and more time specifying, delegating, and reviewing work from AI agents.</p>
-            <div className="hook"><p className="state-label">POTENTIAL HOOK</p><blockquote>“You might already be managing AI more than you’re coding.”</blockquote></div>
-            <div className="audio-label">YOUR RECORDING <span>Only in this browser</span></div>
+          {phase === "done" && result && <div className="result-content">
+            {result.kind === "idea" ? <>
+              <div className="result-heading"><span className="checkmark">✓</span><h2>Your idea, captured.</h2><span>{elapsed}</span></div>
+              <h3>{result.idea.title}</h3>
+              <p className="result-copy">{result.idea.note}</p>
+            </> : result.kind === "script" ? <>
+              <div className="result-heading"><span className="checkmark">✓</span><h2>Your script, ready.</h2><span>{elapsed}</span></div>
+              <h3>{result.script.title}</h3>
+              <p className="result-copy">{result.script.hook}</p>
+              <button className="primary-button" onClick={onViewScript}><span aria-hidden="true">↗</span> View it in Phone → Scripts</button>
+            </> : <>
+              <div className="result-heading"><span className="checkmark">✓</span><h2>Almost there.</h2><span>{elapsed}</span></div>
+              <p className="result-copy">{result.message}</p>
+            </>}
+            <div className="audio-label">YOUR RECORDING <span>Transcribed, not stored</span></div>
             <audio aria-label="Your recorded idea" controls src={recording.audioUrl} onError={() => setPlaybackError(true)} />
             {playbackError && <p className="playback-error" role="status">Playback is unavailable. Save the audio to listen on your device.</p>}
             <a className="download-link" href={recording.audioUrl} download="spark-idea">Save audio <span aria-hidden="true">↗</span></a>
             <button className="primary-button" onClick={recording.reset}><span aria-hidden="true">↻</span> Try another idea</button>
           </div>}
-          <div className="panel-bottom"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="7" width="8" height="6" rx="2" /><path d="M6 7V5a2 2 0 0 1 4 0v2" /></svg> Your voice stays in this browser.</div>
+          <div className="panel-bottom"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="7" width="8" height="6" rx="2" /><path d="M6 7V5a2 2 0 0 1 4 0v2" /></svg> Audio is transcribed to capture your idea, then discarded.</div>
         </section>
       </main>
       <footer className="footer"><span className="footer-index">01 — CAPTURE THE SPARK</span><p><span /> MORE TALKING. LESS TYPING.</p><span className="footer-right">Thought → possibility</span></footer>
@@ -96,7 +104,7 @@ export default function Capture({ initialLibrary: _initialLibrary, libraryError:
         </nav>
         <p className="header-note">A little space for your next big idea.</p>
       </header>
-      {isPhoneTab(tab) ? <main aria-label="Phone mock"><SparkPrototype /></main> : <CaptureExperience />}
+      {isPhoneTab(tab) ? <main aria-label="Phone mock"><SparkPrototype /></main> : <CaptureExperience onViewScript={() => setTab("Phone")} />}
     </div>
   );
 }
