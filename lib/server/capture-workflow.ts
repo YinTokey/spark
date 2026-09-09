@@ -57,7 +57,8 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
     const command = (deps.parseScriptCommand ?? parseScriptCommand)(transcript);
     if (!command.isCommand) {
       stage = 'idea_save_failed';
-      const idea = await deps.repository.insertIdea(transcript);
+      const idea = await deps.repository.insertIdea(transcript, deps.signal);
+      assertActive();
       status = 'idea_saved';
       return { kind: 'idea', idea };
     }
@@ -69,7 +70,8 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
       return { kind: 'no_recent_ideas', message: 'Capture a relevant idea first, then ask for a script within the next hour.' };
     }
     stage = 'script_save_failed';
-    const script = await deps.repository.insertScript(generated);
+    const script = await deps.repository.insertScript(generated, deps.signal);
+    assertActive();
     status = 'script_saved';
     return { kind: 'script', script };
   } catch (error) {

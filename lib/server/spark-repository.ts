@@ -9,14 +9,14 @@ const MAX_RESPONSE_BYTES = 262_144;
 const REQUEST_TIMEOUT_MS = 5_000;
 const uuid = z.uuid();
 const timestamp = z.string().max(64).refine((value) => Number.isFinite(Date.parse(value)));
-const ideaRecord = z.object({ id: uuid, transcript: z.string().min(1).max(10_000), created_at: timestamp }).strict();
+const ideaRecord = z.object({ id: uuid, transcript: z.string().min(1).max(8_000), created_at: timestamp }).strict();
 const scriptRecord = z.object({
-  id: uuid, title: z.string().min(1).max(160), hook: z.string().min(1).max(2_000), body: z.string().min(1).max(20_000), outro: z.string().min(1).max(2_000),
-  idea_ids: z.array(uuid).min(1).max(20), created_at: timestamp,
+  id: uuid, title: z.string().min(1).max(100), hook: z.string().min(1).max(500), body: z.string().min(1).max(6_000), outro: z.string().min(1).max(500),
+  idea_ids: z.array(uuid).min(1).max(12), created_at: timestamp,
 }).strict();
 const scriptInput = z.object({
-  title: z.string().trim().min(1).max(160), hook: z.string().trim().min(1).max(2_000), body: z.string().trim().min(1).max(20_000), outro: z.string().trim().min(1).max(2_000),
-  ideaIds: z.array(uuid).min(1).max(20).refine((ids) => new Set(ids).size === ids.length),
+  title: z.string().trim().min(1).max(100), hook: z.string().trim().min(1).max(500), body: z.string().trim().min(1).max(6_000), outro: z.string().trim().min(1).max(500),
+  ideaIds: z.array(uuid).min(1).max(12).refine((ids) => new Set(ids).size === ids.length),
 }).strict();
 
 const stopWords = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'into', 'is', 'my', 'of', 'on', 'or', 'the', 'to', 'with']);
@@ -79,8 +79,9 @@ export function createSparkRepository(token: string) {
   }
 
   async function insertIdea(transcript: string, signal?: AbortSignal): Promise<Idea> {
-    if (typeof transcript !== 'string' || transcript.trim().length === 0 || transcript.length > 10_000) throw new RepositoryError('invalid_idea');
-    const result = await request('ideas', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ transcript: transcript.trim() }) }, signal);
+    const trimmed = typeof transcript === 'string' ? transcript.trim() : '';
+    if (trimmed.length === 0 || trimmed.length > 8_000) throw new RepositoryError('invalid_idea');
+    const result = await request('ideas', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ transcript: trimmed }) }, signal);
     const parsed = z.array(ideaRecord).length(1).safeParse(result);
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     return toIdea(parsed.data[0]);

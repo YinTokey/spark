@@ -38,7 +38,7 @@ test('a command is never stored as an idea and one generated script is persisted
   assert.deepEqual(await processCapture(audio, deps), { kind: 'script', script });
   assert.deepEqual(deps.events, ['rate', 'transcribe', 'parse', 'generate', 'script']);
   assert.equal(deps.repository.insertIdea.mock.callCount(), 0);
-  assert.deepEqual(deps.repository.insertScript.mock.calls[0].arguments, [generated]);
+  assert.equal(deps.repository.insertScript.mock.calls[0].arguments[0], generated);
   const options = deps.generateScript.mock.calls[0].arguments[0];
   assert.equal(options.command, 'Write a script about focus');
   assert.equal(options.hint, 'focus');
@@ -111,6 +111,28 @@ test('workflow forwards cancellation to every boundary and reports cancellation 
   });
   await assert.rejects(processCapture(audio, { ...deps, signal: controller.signal }), (error: unknown) => error instanceof CaptureWorkflowError && error.code === 'capture_cancelled');
   assert.equal(deps.repository.insertScript.mock.callCount(), 0);
+});
+
+test('an abort during the final idea insert forwards the signal and reports cancellation', async () => {
+  const deps = dependencies();
+  const controller = new AbortController();
+  deps.repository.insertIdea.mock.mockImplementation(async (_text: string, signal?: AbortSignal) => {
+    assert.equal(signal, controller.signal);
+    controller.abort();
+    throw new RepositoryError('cancelled');
+  });
+  await assert.rejects(processCapture(audio, { ...deps, signal: controller.signal }), (error: unknown) => error instanceof CaptureWorkflowError && error.code === 'capture_cancelled');
+});
+
+test('an abort during the final script insert forwards the signal and reports cancellation', async () => {
+  const deps = dependencies(true);
+  const controller = new AbortController();
+  deps.repository.insertScript.mock.mockImplementation(async (_input: unknown, signal?: AbortSignal) => {
+    assert.equal(signal, controller.signal);
+    controller.abort();
+    throw new RepositoryError('cancelled');
+  });
+  await assert.rejects(processCapture(audio, { ...deps, signal: controller.signal }), (error: unknown) => error instanceof CaptureWorkflowError && error.code === 'capture_cancelled');
 });
 
 test('workflow logs contain correlation and stage status without user content or raw errors', async () => {
