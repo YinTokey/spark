@@ -35,6 +35,7 @@ test('recent ideas are user-scoped by bearer token, one-hour cutoff, and local h
   );
 
   assert.deepEqual(ideas.map((entry) => entry.id), [FOCUS_NEW_ID, FOCUS_OLD_ID]);
+  assert.deepEqual(ideas[0], idea(FOCUS_NEW_ID, 'Focus rituals for a productive workday', '2026-09-08T03:40:00.000Z'));
   assert.match(String(fetchMock.mock.calls[0].arguments[0]), /created_at=gte\./);
   assert.equal(new Headers(fetchMock.mock.calls[0].arguments[1]?.headers).get('Authorization'), 'Bearer user-token');
 });
@@ -52,6 +53,24 @@ test('non-empty hints without searchable terms do not return unrelated recent id
   assert.deepEqual(await repository.findRecentIdeas(since, '✨!!'), []);
   assert.deepEqual(await repository.findRecentIdeas(since, '   '), []);
   assert.deepEqual(await repository.findRecentIdeas(since, '\n\t'), []);
+});
+
+test('returns up to twenty matching raw candidates so the script tool can select twelve sources', async () => {
+  configureSupabase();
+  const candidates = Array.from({ length: 20 }, (_, index) => idea(
+    `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    `Focus note ${index}`,
+    `2026-09-08T03:${String(59 - index).padStart(2, '0')}:00.000Z`,
+  ));
+  mock.method(globalThis, 'fetch', async () => Response.json(candidates));
+
+  const results = await createSparkRepository('user-token').findRecentIdeas(
+    new Date('2026-09-08T03:00:00.000Z'),
+    'focus',
+  );
+
+  assert.equal(results.length, 20);
+  assert.deepEqual(results.map((entry) => entry.id), candidates.map((entry) => entry.id));
 });
 
 test('rejects an oversized or malformed PostgREST response', async () => {

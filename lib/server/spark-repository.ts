@@ -1,11 +1,10 @@
 import { z } from 'zod';
-import { toIdea, toScript, type Idea, type LibraryData, type Script } from '../spark-data.ts';
+import { toIdea, toScript, type Idea, type IdeaRecord, type LibraryData, type Script } from '../spark-data.ts';
 import { readBoundedJson } from './bounded-response.ts';
 import { getSupabaseConfig } from './supabase.ts';
 
 const MAX_LIBRARY_ROWS = 50;
 const MAX_RECENT_ROWS = 20;
-const MAX_RECENT_RESULTS = 12;
 const MAX_RESPONSE_BYTES = 262_144;
 const REQUEST_TIMEOUT_MS = 5_000;
 const uuid = z.uuid();
@@ -83,21 +82,20 @@ export function createSparkRepository(token: string) {
     return toIdea(parsed.data[0]);
   }
 
-  async function findRecentIdeas(since: Date, hint: string): Promise<Idea[]> {
+  async function findRecentIdeas(since: Date, hint: string): Promise<IdeaRecord[]> {
     if (!(since instanceof Date) || !Number.isFinite(since.getTime()) || typeof hint !== 'string' || hint.length > 500) throw new RepositoryError('upstream_invalid');
     const result = await request(`ideas?${query({ select: 'id,transcript,created_at', created_at: `gte.${since.toISOString()}`, order: 'created_at.desc', limit: String(MAX_RECENT_ROWS) })}`);
     const parsed = z.array(ideaRecord).max(MAX_RECENT_ROWS).safeParse(result);
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     const newestFirst = [...parsed.data].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
     const tokens = hintTokens(hint);
-    if (hint.length === 0) return newestFirst.slice(0, MAX_RECENT_RESULTS).map((row) => toIdea(row));
+    if (hint.length === 0) return newestFirst;
     if (tokens.length === 0) return [];
     return newestFirst
       .map((row) => ({ row, score: hintTokens(row.transcript).some((token) => tokens.includes(token)) ? 1 : 0 }))
       .filter(({ score }) => score > 0)
       .sort((left, right) => right.score - left.score || Date.parse(right.row.created_at) - Date.parse(left.row.created_at))
-      .slice(0, MAX_RECENT_RESULTS)
-      .map(({ row }) => toIdea(row));
+      .map(({ row }) => row);
   }
 
   async function insertScript(input: unknown): Promise<Script> {
