@@ -110,6 +110,19 @@ test('maximum supported audio size is accepted', async () => {
   assert.equal(external.mock.callCount(), 4);
 });
 
+test('preserves the case-sensitive WebKit multipart boundary from the original header', async () => {
+  const external = boundary();
+  const boundaryName = '----WebKitFormBoundaryAaB03xYz';
+  const body = `--${boundaryName}\r\nContent-Disposition: form-data; name="audio"; filename="idea.webm"\r\nContent-Type: audio/webm\r\n\r\nx\r\n--${boundaryName}--\r\n`;
+  const incoming = new NextRequest('http://localhost/api/capture', {
+    method: 'POST', headers: { origin: 'http://localhost', cookie: 'spark-access-token=test-token', 'content-type': `multipart/form-data; boundary=${boundaryName}` }, body,
+  });
+  const response = await POST(incoming);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).kind, 'idea');
+  assert.equal(external.mock.callCount(), 4);
+});
+
 test('supported browser codec parameters are accepted and unsupported media bases are rejected', async () => {
   const external = boundary();
   for (const [type, status] of [['audio/webm;codecs=opus', 200], ['video/webm;codecs=opus', 400]] as const) {

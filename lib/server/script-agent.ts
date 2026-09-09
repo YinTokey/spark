@@ -30,13 +30,14 @@ export type RunScriptAgent = (input: {
 type GenerateOptions = {
   command: string;
   hint: string;
-  repository: { findRecentIdeas: (cutoff: Date, hint: string) => Promise<IdeaRecord[]> };
+  repository: { findRecentIdeas: (cutoff: Date, hint: string, signal?: AbortSignal) => Promise<IdeaRecord[]> };
   correlationId?: string;
   now?: Date;
   runAgent?: RunScriptAgent;
+  signal?: AbortSignal;
 };
 type ErrorCode = 'invalid_input' | 'invalid_tool_input' | 'tool_required' | 'tool_limit' |
-  'invalid_provenance' | 'invalid_output' | 'retrieval_failed' | 'timeout' | 'upstream_unavailable' | 'not_configured';
+  'invalid_provenance' | 'invalid_output' | 'retrieval_failed' | 'timeout' | 'cancelled' | 'upstream_unavailable' | 'not_configured';
 
 export class ScriptAgentError extends Error {
   readonly code: ErrorCode;
@@ -91,20 +92,20 @@ const runScriptAgent: RunScriptAgent = async ({ command, signal, retrieveRecentI
   return result.finalOutput;
 };
 
-function createRetrieval(options: GenerateOptions, now: Date, hint: string, signal: AbortSignal) {
+function createRetrieval(options: GenerateOptions, now: Date, hint: string, signal: AbortSignal, abortedCode: () => ErrorCode) {
   const state: { called: boolean; empty: boolean; ids: Set<string>; failure?: ScriptAgentError } = {
     called: false, empty: false, ids: new Set(),
   };
   const cutoff = new Date(now.getTime() - 60 * 60 * 1_000);
   async function retrieveRecentIdeas(input: unknown): Promise<IdeaRecord[]> {
     try {
-      if (signal.aborted) throw new ScriptAgentError('timeout');
+      if (signal.aborted) throw new ScriptAgentError(abortedCode());
       if (state.called) throw new ScriptAgentError('tool_limit');
       state.called = true;
       const parsed = toolInput.safeParse(input);
       if (!parsed.success) throw new ScriptAgentError('invalid_tool_input');
-      const rows = sourceIdeas.safeParse(await options.repository.findRecentIdeas(cutoff, parsed.data.topic || hint));
-      if (signal.aborted) throw new ScriptAgentError('timeout');
+      const rows = sourceIdeas.safeParse(await options.repository.findRecentIdeas(cutoff, parsed.data.topic || hint, signal));
+      if (signal.aborted) throw new ScriptAgentError(abortedCode());
       if (!rows.success) throw new ScriptAgentError('retrieval_failed');
       const selected = rows.data
         .filter((row) => Date.parse(row.created_at) >= cutoff.getTime() && Date.parse(row.created_at) <= now.getTime())
@@ -127,18 +128,22 @@ export async function generateScript(options: GenerateOptions): Promise<Generate
   if (!parsed.success) throw new ScriptAgentError('invalid_input');
   const { command, hint, now } = parsed.data;
   const startedAt = Date.now();
-  const signal = AbortSignal.timeout(RUN_TIMEOUT_MS);
-  const { state, retrieveRecentIdeas } = createRetrieval(options, now, hint, signal);
+  const callerSignal = options.signal;
+  const deadlineSignal = AbortSignal.timeout(RUN_TIMEOUT_MS);
+  const signal = callerSignal ? AbortSignal.any([callerSignal, deadlineSignal]) : deadlineSignal;
+  const abortedCode = (): ErrorCode => (callerSignal?.aborted ? 'cancelled' : 'timeout');
+  const { state, retrieveRecentIdeas } = createRetrieval(options, now, hint, signal, abortedCode);
   let status = 'failed';
   let abort: (() => void) | undefined;
   try {
+    if (signal.aborted) throw new ScriptAgentError(abortedCode());
     const cancelled = new Promise<never>((_resolve, reject) => {
-      abort = () => reject(new ScriptAgentError('timeout'));
+      abort = () => reject(new ScriptAgentError(abortedCode()));
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) abort();
     });
     const result = await Promise.race([(options.runAgent ?? runScriptAgent)({ command, signal, retrieveRecentIdeas }), cancelled]);
-    if (signal.aborted) throw new ScriptAgentError('timeout');
+    if (signal.aborted) throw new ScriptAgentError(abortedCode());
     if (state.failure) throw state.failure;
     if (!state.called) throw new ScriptAgentError('tool_required');
     if (state.empty) { status = 'no_match'; return null; }
@@ -150,7 +155,7 @@ export async function generateScript(options: GenerateOptions): Promise<Generate
     status = 'completed';
     return output.data;
   } catch (error) {
-    if (signal.aborted) throw new ScriptAgentError('timeout');
+    if (signal.aborted) throw new ScriptAgentError(abortedCode());
     if (state.failure) throw state.failure;
     if (state.empty) { status = 'no_match'; return null; }
     throw error instanceof ScriptAgentError ? error : new ScriptAgentError('upstream_unavailable');

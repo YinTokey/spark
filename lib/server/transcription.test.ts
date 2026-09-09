@@ -81,6 +81,21 @@ test('does not call Whisper without a server API key', async () => {
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 
+test('caller cancellation reaches Whisper and rejects a late response without another request', async () => {
+  configureOpenAi();
+  const controller = new AbortController();
+  const external = mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
+    assert.equal(init?.signal?.aborted, false);
+    controller.abort();
+    assert.equal(init?.signal?.aborted, true);
+    return Response.json({ text: 'Late transcript' });
+  });
+  await assert.rejects(transcribeAudio(audio(), { signal: controller.signal }), /cancelled/);
+  assert.equal(external.mock.callCount(), 1);
+  await assert.rejects(transcribeAudio(audio(), { signal: controller.signal }), /cancelled/);
+  assert.equal(external.mock.callCount(), 1);
+});
+
 test('maps rate limits and unavailable upstream failures without exposing their text', async () => {
   configureOpenAi();
   mock.method(globalThis, 'fetch', async () => new Response('secret upstream details', { status: 429 }));

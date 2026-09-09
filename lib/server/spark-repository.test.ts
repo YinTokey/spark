@@ -144,6 +144,31 @@ test('does not insert a script when any provenance id is not owned', async () =>
   assert.equal(fetchMock.mock.callCount(), 1);
 });
 
+test('cancellation while verifying script ownership cannot start the later insert', async () => {
+  configureSupabase();
+  const controller = new AbortController();
+  const external = mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(init?.signal?.aborted, false);
+    if (String(url).includes('/ideas?')) { controller.abort(); return Response.json([{ id: FOCUS_NEW_ID }]); }
+    return Response.json([{ id: '55555555-5555-4555-8555-555555555555', title: 'Focus', hook: 'Hook', body: 'Body', outro: 'Outro', idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00Z' }]);
+  });
+  await assert.rejects(createSparkRepository('user-token').insertScript({ title: 'Focus', hook: 'Hook', body: 'Body', outro: 'Outro', ideaIds: [FOCUS_NEW_ID] }, controller.signal), /cancelled/);
+  assert.equal(external.mock.callCount(), 1);
+  assert.equal(external.mock.calls[0].arguments[1]?.signal?.aborted, true);
+});
+
+test('already cancelled repository operations cannot send an external request', async () => {
+  configureSupabase();
+  const external = mock.method(globalThis, 'fetch', async () => Response.json(true));
+  const repository = createSparkRepository('user-token');
+  const signal = AbortSignal.abort();
+  await assert.rejects(repository.consumeAiRequest(signal), /cancelled/);
+  await assert.rejects(repository.consumeIdeaWrite(signal), /cancelled/);
+  await assert.rejects(repository.insertIdea('An idea', signal), /cancelled/);
+  await assert.rejects(repository.findRecentIdeas(new Date(), '', signal), /cancelled/);
+  assert.equal(external.mock.callCount(), 0);
+});
+
 test('rate RPC returns false and rejects unexpected database fields', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => Response.json(false));

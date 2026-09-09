@@ -179,6 +179,41 @@ test('default runner refuses missing server credentials', async () => {
   await assert.rejects(generateScript(inputs), /not_configured/);
 });
 
+test('caller cancellation before an agent run prevents any runner or retrieval work', async () => {
+  const runAgent = mock.fn(validRunner);
+  const findRecentIdeas = mock.fn(repository.findRecentIdeas);
+  await assert.rejects(generateScript({ ...inputs, signal: AbortSignal.abort(), repository: { findRecentIdeas }, runAgent }), /cancelled/);
+  assert.equal(runAgent.mock.callCount(), 0);
+  assert.equal(findRecentIdeas.mock.callCount(), 0);
+});
+
+test('caller cancellation rejects late retrieval before it can reach the repository', async () => {
+  const controller = new AbortController();
+  const findRecentIdeas = mock.fn(repository.findRecentIdeas);
+  await assert.rejects(generateScript({ ...inputs, signal: controller.signal, repository: { findRecentIdeas }, runAgent: async ({ retrieveRecentIdeas, signal }) => {
+    controller.abort();
+    assert.equal(signal.aborted, true);
+    await assert.rejects(retrieveRecentIdeas({}), /cancelled/);
+    return output;
+  } }), /cancelled/);
+  assert.equal(findRecentIdeas.mock.callCount(), 0);
+});
+
+test('retrieval receives the combined caller and deadline signal and rejects cancelled results', async () => {
+  const controller = new AbortController();
+  let requests = 0;
+  await assert.rejects(generateScript({ ...inputs, signal: controller.signal,
+    repository: { findRecentIdeas: async (_cutoff, _hint, signal) => {
+      requests++;
+      assert.equal(signal?.aborted, false);
+      controller.abort();
+      assert.equal(signal?.aborted, true);
+      return [recent];
+    } }, runAgent: validRunner,
+  }), /cancelled/);
+  assert.equal(requests, 1);
+});
+
 function modelResponse(items: unknown[]) {
   return Response.json({
     id: 'resp_test', object: 'response', created_at: 1, status: 'completed', model: 'gpt-4.1-mini',

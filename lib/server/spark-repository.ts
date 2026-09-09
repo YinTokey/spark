@@ -22,9 +22,9 @@ const scriptInput = z.object({
 const stopWords = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'into', 'is', 'my', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 export class RepositoryError extends Error {
-  readonly code: 'unavailable' | 'upstream_unavailable' | 'upstream_invalid' | 'invalid_idea' | 'invalid_script';
+  readonly code: 'unavailable' | 'upstream_unavailable' | 'upstream_invalid' | 'invalid_idea' | 'invalid_script' | 'cancelled';
 
-  constructor(code: 'unavailable' | 'upstream_unavailable' | 'upstream_invalid' | 'invalid_idea' | 'invalid_script') {
+  constructor(code: 'unavailable' | 'upstream_unavailable' | 'upstream_invalid' | 'invalid_idea' | 'invalid_script' | 'cancelled') {
     super(code);
     this.name = 'RepositoryError';
     this.code = code;
@@ -45,19 +45,23 @@ export function createSparkRepository(token: string) {
   const supabaseUrl = config.url;
   const baseHeaders = { apikey: config.publishableKey, Authorization: `Bearer ${token}` };
 
-  async function request(path: string, init: RequestInit = {}) {
+  async function request(path: string, init: RequestInit = {}, signal?: AbortSignal) {
+    if (signal?.aborted) throw new RepositoryError('cancelled');
+    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     let response: Response;
     try {
       response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
         ...init,
         headers: { ...baseHeaders, ...init.headers },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: combined,
         cache: 'no-store',
         redirect: 'error',
       });
     } catch {
-      throw new RepositoryError('upstream_unavailable');
+      throw new RepositoryError(signal?.aborted ? 'cancelled' : 'upstream_unavailable');
     }
+    if (signal?.aborted) throw new RepositoryError('cancelled');
     const result = await readBoundedJson(response, MAX_RESPONSE_BYTES);
     if (result === null || !response.ok) throw new RepositoryError('upstream_invalid');
     return result;
@@ -74,17 +78,17 @@ export function createSparkRepository(token: string) {
     return { ideas: ideas.data.map((row) => toIdea(row)), scripts: scripts.data.map((row) => toScript(row)) };
   }
 
-  async function insertIdea(transcript: string): Promise<Idea> {
+  async function insertIdea(transcript: string, signal?: AbortSignal): Promise<Idea> {
     if (typeof transcript !== 'string' || transcript.trim().length === 0 || transcript.length > 10_000) throw new RepositoryError('invalid_idea');
-    const result = await request('ideas', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ transcript: transcript.trim() }) });
+    const result = await request('ideas', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ transcript: transcript.trim() }) }, signal);
     const parsed = z.array(ideaRecord).length(1).safeParse(result);
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     return toIdea(parsed.data[0]);
   }
 
-  async function findRecentIdeas(since: Date, hint: string): Promise<IdeaRecord[]> {
+  async function findRecentIdeas(since: Date, hint: string, signal?: AbortSignal): Promise<IdeaRecord[]> {
     if (!(since instanceof Date) || !Number.isFinite(since.getTime()) || typeof hint !== 'string' || hint.length > 500) throw new RepositoryError('upstream_invalid');
-    const result = await request(`ideas?${query({ select: 'id,transcript,created_at', created_at: `gte.${since.toISOString()}`, order: 'created_at.desc', limit: String(MAX_RECENT_ROWS) })}`);
+    const result = await request(`ideas?${query({ select: 'id,transcript,created_at', created_at: `gte.${since.toISOString()}`, order: 'created_at.desc', limit: String(MAX_RECENT_ROWS) })}`, {}, signal);
     const parsed = z.array(ideaRecord).max(MAX_RECENT_ROWS).safeParse(result);
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     const newestFirst = [...parsed.data].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
@@ -98,30 +102,30 @@ export function createSparkRepository(token: string) {
       .map(({ row }) => row);
   }
 
-  async function insertScript(input: unknown): Promise<Script> {
+  async function insertScript(input: unknown, signal?: AbortSignal): Promise<Script> {
     const validated = scriptInput.safeParse(input);
     if (!validated.success) throw new RepositoryError('invalid_script');
     const ids = validated.data.ideaIds;
-    const owned = await request(`ideas?${query({ select: 'id', id: `in.(${ids.join(',')})`, limit: String(ids.length) })}`);
+    const owned = await request(`ideas?${query({ select: 'id', id: `in.(${ids.join(',')})`, limit: String(ids.length) })}`, {}, signal);
     const ownedRows = z.array(z.object({ id: uuid }).strict()).max(ids.length).safeParse(owned);
     if (!ownedRows.success || ownedRows.data.length !== ids.length || new Set(ownedRows.data.map((row) => row.id)).size !== ids.length) throw new RepositoryError('invalid_script');
     const result = await request('scripts', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify({ title: validated.data.title, hook: validated.data.hook, body: validated.data.body, outro: validated.data.outro, idea_ids: ids }),
-    });
+    }, signal);
     const parsed = z.array(scriptRecord).length(1).safeParse(result);
     if (!parsed.success) throw new RepositoryError('upstream_invalid');
     return toScript(parsed.data[0]);
   }
 
-  async function consumeAiRequest(): Promise<boolean> {
-    const result = await request('rpc/consume_ai_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  async function consumeAiRequest(signal?: AbortSignal): Promise<boolean> {
+    const result = await request('rpc/consume_ai_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, signal);
     if (typeof result !== 'boolean') throw new RepositoryError('upstream_invalid');
     return result;
   }
 
-  async function consumeIdeaWrite(): Promise<boolean> {
-    const result = await request('rpc/consume_idea_write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  async function consumeIdeaWrite(signal?: AbortSignal): Promise<boolean> {
+    const result = await request('rpc/consume_idea_write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, signal);
     if (typeof result !== 'boolean') throw new RepositoryError('upstream_invalid');
     return result;
   }

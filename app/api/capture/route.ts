@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server.js';
 import { CaptureWorkflowError, processCapture } from '../../../lib/server/capture-workflow.ts';
 import { authorizeMutation, MutationError, mutationFailure, privateJson, readMutationBody } from '../../../lib/server/mutation-request.ts';
+import { parseMultipartFormData } from '../../../lib/server/multipart.ts';
 import { createSparkRepository } from '../../../lib/server/spark-repository.ts';
 import { validateAudio } from '../../../lib/server/transcription.ts';
 
@@ -13,8 +14,9 @@ async function readAudio(request: NextRequest) {
     throw new MutationError('invalid_audio', 400, 'Send one supported audio recording.');
   }
   const body = await readMutationBody(request, MAX_BODY_BYTES);
-  let form: FormData;
-  try { form = await new Response(body).formData(); } catch {
+  let form: FormData | null;
+  try { form = await parseMultipartFormData(body, request.headers.get('content-type') ?? ''); } catch { form = null; }
+  if (!form) {
     throw new MutationError('invalid_audio', 400, 'Could not read this recording. Please record again.');
   }
   const entries = [...form.entries()];

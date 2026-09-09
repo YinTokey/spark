@@ -9,12 +9,12 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const allowedAudioTypes = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav']);
 const whisperResponse = z.object({ text: z.string() }).strict();
 
-export type TranscriptionOptions = { correlationId?: string };
+export type TranscriptionOptions = { correlationId?: string; signal?: AbortSignal };
 
 export class TranscriptionError extends Error {
-  readonly code: 'not_configured' | 'invalid_audio' | 'upstream_unavailable' | 'upstream_invalid';
+  readonly code: 'not_configured' | 'invalid_audio' | 'upstream_unavailable' | 'upstream_invalid' | 'cancelled';
 
-  constructor(code: 'not_configured' | 'invalid_audio' | 'upstream_unavailable' | 'upstream_invalid') {
+  constructor(code: 'not_configured' | 'invalid_audio' | 'upstream_unavailable' | 'upstream_invalid' | 'cancelled') {
     super(code);
     this.name = 'TranscriptionError';
     this.code = code;
@@ -41,27 +41,34 @@ export async function transcribeAudio(file: File, options: TranscriptionOptions 
   validateAudio(file);
   const apiKey = process.env.OPENAI_API_KEY;
   if (typeof apiKey !== 'string' || apiKey.trim().length === 0 || apiKey.length > 8_192) throw new TranscriptionError('not_configured');
+  if (options.signal?.aborted) throw new TranscriptionError('cancelled');
 
   const form = new FormData();
   form.set('file', file);
   form.set('model', 'whisper-1');
   const startedAt = Date.now();
   const correlationId = validCorrelationId(options.correlationId);
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
   let response: Response;
   try {
     response = await fetch(WHISPER_ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal,
       cache: 'no-store',
       redirect: 'error',
     });
   } catch {
     logResult(0, startedAt, correlationId);
-    throw new TranscriptionError('upstream_unavailable');
+    throw new TranscriptionError(options.signal?.aborted ? 'cancelled' : 'upstream_unavailable');
   }
 
+  if (options.signal?.aborted) {
+    logResult(0, startedAt, correlationId);
+    throw new TranscriptionError('cancelled');
+  }
   logResult(response.status, startedAt, correlationId);
   if (response.status === 429 || response.status >= 500) throw new TranscriptionError('upstream_unavailable');
   if (!response.ok) throw new TranscriptionError('upstream_invalid');

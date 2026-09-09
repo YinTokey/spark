@@ -101,6 +101,18 @@ test('cancellation after transcription prevents stale persistence', async () => 
   assert.equal(deps.generateScript.mock.callCount(), 0);
 });
 
+test('workflow forwards cancellation to every boundary and reports cancellation during generation', async () => {
+  const deps = dependencies(true);
+  const controller = new AbortController();
+  deps.generateScript.mock.mockImplementation(async (options) => {
+    assert.equal(options.signal, controller.signal);
+    controller.abort();
+    throw new ScriptAgentError('cancelled');
+  });
+  await assert.rejects(processCapture(audio, { ...deps, signal: controller.signal }), (error: unknown) => error instanceof CaptureWorkflowError && error.code === 'capture_cancelled');
+  assert.equal(deps.repository.insertScript.mock.callCount(), 0);
+});
+
 test('workflow logs contain correlation and stage status without user content or raw errors', async () => {
   const log = mock.method(console, 'info', () => {});
   const deps = dependencies();

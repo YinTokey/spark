@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Idea, Script } from '../spark-data.ts';
 import { generateScript, ScriptAgentError } from './script-agent.ts';
 import { parseScriptCommand } from './script-command.ts';
-import type { createSparkRepository } from './spark-repository.ts';
+import { RepositoryError, type createSparkRepository } from './spark-repository.ts';
 import { transcribeAudio, TranscriptionError } from './transcription.ts';
 
 export type CaptureResult =
@@ -52,7 +52,7 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
     if (!await deps.repository.consumeAiRequest()) throw new CaptureWorkflowError('rate_limited');
     assertActive();
     stage = 'transcription_failed';
-    const transcript = await (deps.transcribeAudio ?? transcribeAudio)(file, { correlationId });
+    const transcript = await (deps.transcribeAudio ?? transcribeAudio)(file, { correlationId, signal: deps.signal });
     assertActive();
     const command = (deps.parseScriptCommand ?? parseScriptCommand)(transcript);
     if (!command.isCommand) {
@@ -62,7 +62,7 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
       return { kind: 'idea', idea };
     }
     stage = 'script_generation_failed';
-    const generated = await (deps.generateScript ?? generateScript)({ command: transcript, hint: command.hint, repository: deps.repository, correlationId });
+    const generated = await (deps.generateScript ?? generateScript)({ command: transcript, hint: command.hint, repository: deps.repository, correlationId, signal: deps.signal });
     assertActive();
     if (generated === null) {
       status = 'no_recent_ideas';
@@ -73,8 +73,13 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
     status = 'script_saved';
     return { kind: 'script', script };
   } catch (error) {
+    const cancelled = error instanceof TranscriptionError || error instanceof ScriptAgentError || error instanceof RepositoryError
+      ? error.code === 'cancelled'
+      : false;
     const mapped = error instanceof CaptureWorkflowError ? error : new CaptureWorkflowError(
-      (error instanceof TranscriptionError || error instanceof ScriptAgentError) && error.code === 'not_configured' ? 'ai_not_configured' : stage,
+      cancelled ? 'capture_cancelled'
+        : (error instanceof TranscriptionError || error instanceof ScriptAgentError) && error.code === 'not_configured' ? 'ai_not_configured'
+          : stage,
     );
     status = mapped.code;
     throw mapped;
