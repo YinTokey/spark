@@ -3,16 +3,17 @@
 import { useState } from "react";
 import { Necklace } from "./necklace";
 import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
+import type { CaptureUploadResult } from "./capture-client";
 import SparkPrototype from "./spark/spark-prototype";
 import { useRecorder } from "./use-recorder";
-import type { LibraryData } from "@/lib/spark-data";
+import type { Idea, LibraryData, Script } from "@/lib/spark-data";
 
 function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
 }
 
-function CaptureExperience({ onViewScript }: { onViewScript: () => void }) {
-  const recording = useRecorder();
+function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: CaptureUploadResult) => void; onViewScript: (scriptId: string) => void }) {
+  const recording = useRecorder({ onCreated });
   const [playbackError, setPlaybackError] = useState(false);
   const { phase, result } = recording;
   const busy = phase === "requesting" || phase === "processing";
@@ -71,7 +72,7 @@ function CaptureExperience({ onViewScript }: { onViewScript: () => void }) {
               <div className="result-heading"><span className="checkmark">✓</span><h2>Your script, ready.</h2><span>{elapsed}</span></div>
               <h3>{result.script.title}</h3>
               <p className="result-copy">{result.script.hook}</p>
-              <button className="primary-button" onClick={onViewScript}><span aria-hidden="true">↗</span> View it in Phone → Scripts</button>
+              <button className="primary-button" onClick={() => onViewScript(result.script.id)}><span aria-hidden="true">↗</span> View it in Phone → Scripts</button>
             </> : <>
               <div className="result-heading"><span className="checkmark">✓</span><h2>Almost there.</h2><span>{elapsed}</span></div>
               <p className="result-copy">{result.message}</p>
@@ -90,10 +91,28 @@ function CaptureExperience({ onViewScript }: { onViewScript: () => void }) {
   );
 }
 
-export default function Capture({ initialLibrary: _initialLibrary, libraryError: _libraryError }: { initialLibrary?: LibraryData; libraryError: boolean }) {
-  void _initialLibrary;
-  void _libraryError;
+function prepend<T extends { id: string }>(list: T[], item: T): T[] {
+  return [item, ...list.filter(existing => existing.id !== item.id)];
+}
+
+export default function Capture({ initialLibrary, libraryError }: { initialLibrary?: LibraryData; libraryError: boolean }) {
   const [tab, setTab] = useState("Capture");
+  const [ideas, setIdeas] = useState<Idea[]>(initialLibrary?.ideas ?? []);
+  const [scripts, setScripts] = useState<Script[]>(initialLibrary?.scripts ?? []);
+  const [pendingScriptId, setPendingScriptId] = useState<string | null>(null);
+
+  const onIdeaCreated = (idea: Idea) => setIdeas(current => prepend(current, idea));
+  const onScriptCreated = (script: Script) => setScripts(current => prepend(current, script));
+
+  function handleCreated(result: CaptureUploadResult) {
+    if (result.kind === "idea") onIdeaCreated(result.idea);
+    else if (result.kind === "script") onScriptCreated(result.script);
+  }
+
+  function openScript(scriptId: string) {
+    setTab("Phone");
+    setPendingScriptId(scriptId);
+  }
 
   return (
     <div className="experience">
@@ -104,7 +123,9 @@ export default function Capture({ initialLibrary: _initialLibrary, libraryError:
         </nav>
         <p className="header-note">A little space for your next big idea.</p>
       </header>
-      {isPhoneTab(tab) ? <main aria-label="Phone mock"><SparkPrototype /></main> : <CaptureExperience onViewScript={() => setTab("Phone")} />}
+      {isPhoneTab(tab)
+        ? <main aria-label="Phone mock"><SparkPrototype ideas={ideas} scripts={scripts} onIdeaCreated={onIdeaCreated} libraryError={libraryError} pendingScriptId={pendingScriptId} onPendingScriptConsumed={() => setPendingScriptId(null)} /></main>
+        : <CaptureExperience onCreated={handleCreated} onViewScript={openScript} />}
     </div>
   );
 }

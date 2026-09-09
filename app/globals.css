@@ -317,6 +317,11 @@ h1, h2, h3, p { margin: 0; }
 .badge.shaped { background: #f3e6c9; color: #9a6a1d; }
 .badge.raw { background: #e9e7e0; color: #6f756d; }
 .library-footnote { display: flex; align-items: center; gap: 10px; margin-top: 26px; padding: 16px; border-radius: 14px; background: #f1eee6; color: #7b8078; font-size: 12.5px; line-height: 1.4; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; text-align: center; color: #7b8078; }
+.empty-state .small-spark { font-size: 26px; color: #485542; }
+.empty-state p { margin-top: 14px; font-size: 17px; font-weight: 650; color: #3a4038; }
+.empty-state span:last-child { margin-top: 8px; font-size: 13px; line-height: 1.5; max-width: 24ch; }
+.library-error { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #f7e6e4; color: #9c2d2d; font-size: 13px; }
 .small-spark { color: #485542; }
 .detail-nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 6px; font-size: 11px; letter-spacing: .12em; color: #8a8f87; }
 .back-button { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 0; border: 0; background: transparent; color: #485542; font-size: 14px; font-weight: 600; }

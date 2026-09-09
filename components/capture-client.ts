@@ -1,4 +1,5 @@
-import type { Idea, Script } from "@/lib/spark-data";
+import { parseIdea, parseScript, readBoundedText } from "../lib/client-http.ts";
+import type { Idea, Script } from "../lib/spark-data.ts";
 
 export type CaptureUploadResult =
   | { kind: "idea"; idea: Idea }
@@ -20,71 +21,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function stringArray(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const result: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string") return null;
-    result.push(item);
-  }
-  return result;
-}
-
-function ideaFrom(value: Record<string, unknown>): Idea | null {
-  if (typeof value.id !== "string" || typeof value.title !== "string" || typeof value.note !== "string" ||
-      typeof value.date !== "string" || typeof value.time !== "string" ||
-      (value.status !== "Raw" && value.status !== "Shaped")) return null;
-  return { id: value.id, title: value.title, note: value.note, date: value.date, time: value.time, status: value.status };
-}
-
-function scriptFrom(value: Record<string, unknown>): Script | null {
-  if (typeof value.id !== "string" || typeof value.title !== "string" || typeof value.hook !== "string" ||
-      typeof value.outro !== "string" ||
-      (value.status !== "Ready to record" && value.status !== "Draft" && value.status !== "Editing")) return null;
-  const ideaIds = stringArray(value.ideaIds);
-  const points = stringArray(value.points);
-  if (!ideaIds || !points) return null;
-  return { id: value.id, title: value.title, status: value.status, ideaIds, hook: value.hook, points, outro: value.outro };
-}
-
 function parseResult(value: unknown): CaptureUploadResult | null {
   if (!isRecord(value)) return null;
   if (value.kind === "idea" && isRecord(value.idea)) {
-    const idea = ideaFrom(value.idea);
+    const idea = parseIdea(value.idea);
     return idea ? { kind: "idea", idea } : null;
   }
   if (value.kind === "script" && isRecord(value.script)) {
-    const script = scriptFrom(value.script);
+    const script = parseScript(value.script);
     return script ? { kind: "script", script } : null;
   }
   if (value.kind === "no_recent_ideas" && typeof value.message === "string" && value.message.length <= 500) {
     return { kind: "no_recent_ideas", message: value.message };
   }
   return null;
-}
-
-async function readBoundedText(response: Response, maxBytes: number): Promise<string | null> {
-  const declaredLength = response.headers.get("content-length");
-  if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxBytes)) return null;
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let total = 0;
-  let text = "";
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) { await reader.cancel().catch(() => {}); return null; }
-      text += decoder.decode(value, { stream: true });
-    }
-    return text + decoder.decode();
-  } catch {
-    return null;
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 function audioExtension(type: string) {
