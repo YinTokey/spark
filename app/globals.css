@@ -306,7 +306,6 @@ h1, h2, h3, p { margin: 0; }
 .library-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 10px; border: 0; border-radius: 14px; background: transparent; text-align: left; }
 .library-row:hover { background: #f1eee6; }
 .row-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: #ede9df; color: #485542; flex-shrink: 0; }
-.row-icon.warm { background: #f3e6c9; color: #a4711f; }
 .row-content { flex: 1; min-width: 0; }
 .row-title { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: #8a8f87; }

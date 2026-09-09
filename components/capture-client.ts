@@ -1,4 +1,4 @@
-import { parseIdea, parseScript, readBoundedText } from "../lib/client-http.ts";
+import { isRecord, parseIdea, parseScript, readBoundedText } from "../lib/client-http.ts";
 import type { Idea, Script } from "../lib/spark-data.ts";
 
 export type CaptureUploadResult =
@@ -16,10 +16,6 @@ const statusMessages: Record<number, { message: string; retryable: boolean }> = 
   502: { message: "Spark couldn't finish this one. Please try again.", retryable: true },
   503: { message: "Spark is temporarily unavailable. Please try again later.", retryable: true },
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function parseResult(value: unknown): CaptureUploadResult | null {
   if (!isRecord(value)) return null;

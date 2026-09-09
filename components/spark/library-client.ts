@@ -1,4 +1,4 @@
-import { parseIdea, readBoundedText } from "../../lib/client-http.ts";
+import { isRecord, parseIdea, readBoundedText } from "../../lib/client-http.ts";
 import type { Idea } from "../../lib/spark-data.ts";
 
 export type IdeaCreateResult = { idea: Idea } | { error: string };
@@ -12,10 +12,6 @@ const statusMessages: Record<number, string> = {
   502: "Could not confirm that your idea was saved. Check your library before trying again.",
   503: "Saving ideas is temporarily unavailable. Please try again later.",
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export async function createIdea(transcript: string, signal?: AbortSignal): Promise<IdeaCreateResult> {
   const trimmed = transcript.trim();
