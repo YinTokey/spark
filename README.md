@@ -21,9 +21,30 @@ Create `.env.local` with the Supabase project values from the project’s Connec
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+OPENAI_API_KEY=your-openai-key
 ```
 
-Email/password registration uses Supabase Auth’s built-in `auth.users` table. No separate profile table is required.
+Email/password registration uses Supabase Auth’s built-in `auth.users` table. No separate profile table is required. `OPENAI_API_KEY` stays server-only and is never exposed to the browser.
+
+## Voice capture and agent scripts
+
+Spark authenticates a Supabase access-token cookie, transcribes bounded voice recordings with OpenAI Whisper, stores ideas, and runs an OpenAI Agents SDK workflow to turn a natural “make me a script” command into a persisted YouTube script using the user’s recent ideas.
+
+Apply the schema migration `supabase/migrations/20260908000000_voice_capture.sql` through your normal Supabase workflow before using the database-backed library. It creates `ideas`, `scripts`, and `ai_rate_limits` tables with row-level security and a transaction-safe per-user AI request limit.
+
+Product limits: recordings are capped at 60 seconds and 8 MB, ideas reference only the preceding hour, and audio is transcribed transiently and never stored. Scripts record provenance as a bounded list of idea IDs.
+
+## Verification
+
+The canonical repository gate is:
+
+```bash
+npm run check
+```
+
+`npm run check` runs the Node.js unit and browser regression suites, zero-warning ESLint, Next.js route type generation and strict TypeScript, the production build, and the Playwright landing tests. The browser regression suite in `scripts/spark.test.mjs` starts a temporary Next.js dev server on port 3187 against a local Supabase stub; stop any existing dev server for this checkout before running it. Run `npx playwright install chromium` once locally (CI installs Chromium and system dependencies).
+
+Tests mock the Supabase and OpenAI boundaries and never spend real OpenAI credits or touch a real database.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
