@@ -120,5 +120,11 @@ export function createSparkRepository(token: string) {
     return result;
   }
 
-  return { loadLibrary, insertIdea, findRecentIdeas, insertScript, consumeAiRequest };
+  async function consumeIdeaWrite(): Promise<boolean> {
+    const result = await request('rpc/consume_idea_write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (typeof result !== 'boolean') throw new RepositoryError('upstream_invalid');
+    return result;
+  }
+
+  return { loadLibrary, insertIdea, findRecentIdeas, insertScript, consumeAiRequest, consumeIdeaWrite };
 }

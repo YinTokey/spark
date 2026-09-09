@@ -153,6 +153,26 @@ test('rate RPC returns false and rejects unexpected database fields', async () =
   await assert.rejects(createSparkRepository('user-token').loadLibrary(), /upstream_invalid/);
 });
 
+test('manual write allowance uses a separate authenticated no-argument RPC', async () => {
+  configureSupabase();
+  const external = mock.method(globalThis, 'fetch', async () => Response.json(true));
+  assert.equal(await createSparkRepository('user-token').consumeIdeaWrite(), true);
+  const [url, init] = external.mock.calls[0].arguments;
+  assert.equal(url, 'https://project.supabase.co/rest/v1/rpc/consume_idea_write');
+  assert.equal(init?.method, 'POST');
+  assert.equal(init?.body, '{}');
+  assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer user-token');
+});
+
+test('manual write allowance handles denial and rejects malformed responses without retries', async () => {
+  configureSupabase();
+  const external = mock.method(globalThis, 'fetch', async () => Response.json(false));
+  assert.equal(await createSparkRepository('user-token').consumeIdeaWrite(), false);
+  external.mock.mockImplementation(async () => Response.json({ allowed: true }));
+  await assert.rejects(createSparkRepository('user-token').consumeIdeaWrite(), /upstream_invalid/);
+  assert.equal(external.mock.callCount(), 2);
+});
+
 test('maps network failures, timeouts, response overflow, and invalid JSON to stable errors', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => { throw new Error('network'); });

@@ -31,10 +31,14 @@ function logResult(status: number, startedAt: number, correlationId: string | un
   console.info('transcription.completed', { status, durationMs: Date.now() - startedAt, correlationId });
 }
 
-export async function transcribeAudio(file: File, options: TranscriptionOptions = {}): Promise<string> {
-  if (!(file instanceof File) || file.size === 0 || file.size > MAX_AUDIO_BYTES || !allowedAudioTypes.has(file.type)) {
+export function validateAudio(file: File): void {
+  if (!(file instanceof File) || file.size === 0 || file.size > MAX_AUDIO_BYTES || !allowedAudioTypes.has(file.type.split(';', 1)[0].trim().toLowerCase())) {
     throw new TranscriptionError('invalid_audio');
   }
+}
+
+export async function transcribeAudio(file: File, options: TranscriptionOptions = {}): Promise<string> {
+  validateAudio(file);
   const apiKey = process.env.OPENAI_API_KEY;
   if (typeof apiKey !== 'string' || apiKey.trim().length === 0 || apiKey.length > 8_192) throw new TranscriptionError('not_configured');
 

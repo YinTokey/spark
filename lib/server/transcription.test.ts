@@ -56,6 +56,14 @@ test('accepts each MediaRecorder audio type', async () => {
   assert.equal(fetchMock.mock.callCount(), 5);
 });
 
+test('supports codec parameters only for allowed audio media types', async () => {
+  configureOpenAi();
+  const external = mock.method(globalThis, 'fetch', async () => Response.json({ text: 'A browser recording' }));
+  assert.equal(await transcribeAudio(audio('audio/webm;codecs=opus')), 'A browser recording');
+  await assert.rejects(transcribeAudio(audio('video/webm;codecs=opus')), isError('invalid_audio'));
+  assert.equal(external.mock.callCount(), 1);
+});
+
 test('rejects invalid audio before contacting Whisper', async () => {
   configureOpenAi();
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({ text: 'unreachable' }));
