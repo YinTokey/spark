@@ -41,7 +41,13 @@ type Dependencies = {
   signal?: AbortSignal;
 };
 
-export async function processCapture(file: File, deps: Dependencies): Promise<CaptureResult> {
+function validateTranscript(value: string) {
+  const transcript = value.trim();
+  if (transcript.length === 0 || transcript.length > 8_000) throw new CaptureWorkflowError('transcription_failed');
+  return transcript;
+}
+
+async function processInput(getTranscript: (correlationId: string) => Promise<string>, deps: Dependencies): Promise<CaptureResult> {
   const correlationId = randomUUID();
   const startedAt = Date.now();
   let stage: FailureCode = 'rate_limited';
@@ -52,7 +58,7 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
     if (!deps.consumeCaptureSlot()) throw new CaptureWorkflowError('rate_limited');
     assertActive();
     stage = 'transcription_failed';
-    const transcript = await (deps.transcribeAudio ?? transcribeAudio)(file, { correlationId, signal: deps.signal });
+    const transcript = validateTranscript(await getTranscript(correlationId));
     assertActive();
     const command = (deps.parseScriptCommand ?? parseScriptCommand)(transcript);
     if (!command.isCommand) {
@@ -88,4 +94,15 @@ export async function processCapture(file: File, deps: Dependencies): Promise<Ca
   } finally {
     console.info('capture.completed', { status, durationMs: Date.now() - startedAt, correlationId });
   }
+}
+
+export function processCapture(file: File, deps: Dependencies): Promise<CaptureResult> {
+  return processInput(
+    correlationId => (deps.transcribeAudio ?? transcribeAudio)(file, { correlationId, signal: deps.signal }),
+    deps,
+  );
+}
+
+export function processTranscript(transcript: string, deps: Dependencies): Promise<CaptureResult> {
+  return processInput(async () => transcript, deps);
 }

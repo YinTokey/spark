@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
-import { CaptureWorkflowError, processCapture } from './capture-workflow.ts';
+import { CaptureWorkflowError, processCapture, processTranscript } from './capture-workflow.ts';
 import { TranscriptionError } from './transcription.ts';
 import { ScriptAgentError, type GeneratedScript } from './script-agent.ts';
 import { RepositoryError } from './spark-repository.ts';
@@ -31,6 +31,14 @@ test('ordinary speech consumes a rate slot, transcribes and inserts exactly one 
   assert.deepEqual(await processCapture(audio, deps), { kind: 'idea', idea });
   assert.deepEqual(deps.events, ['rate', 'transcribe', 'parse', 'idea:A thought']);
   assert.equal(deps.generateScript.mock.callCount(), 0);
+});
+
+test('a supplied live transcript uses the same idea persistence path without transcription', async () => {
+  const deps = dependencies();
+  const result = await processTranscript('A live idea', deps);
+  assert.equal(result.kind, 'idea');
+  assert.equal(deps.transcribeAudio.mock.callCount(), 0);
+  assert.deepEqual(deps.events, ['rate', 'parse', 'idea:A live idea']);
 });
 
 test('a command is never stored as an idea and one generated script is persisted', async () => {
