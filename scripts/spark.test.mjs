@@ -159,6 +159,55 @@ test('a voice capture uploads and renders the returned idea', async () => {
   await expect(page.getByRole('heading', { name: 'A captured idea' })).toBeVisible();
 });
 
+test('the recording panel shows a visible, animated live waveform', async () => {
+  stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await expect(page.getByRole('heading', { name: 'Listening to you.' })).toBeVisible();
+
+  const wave = page.locator('.recording-content .waveform');
+  const bars = wave.locator('i');
+  await expect(bars).toHaveCount(32);
+
+  const bar = await bars.first().evaluate(element => {
+    const styles = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    const parent = element.parentElement.getBoundingClientRect();
+    return {
+      width: parseFloat(styles.width),
+      height: parseFloat(styles.height),
+      background: styles.backgroundImage,
+      transitionProperty: styles.transitionProperty,
+      transitionDuration: parseFloat(styles.transitionDuration),
+      centerOffset: Math.abs((box.top + box.height / 2) - (parent.top + parent.height / 2)),
+    };
+  });
+  expect(bar.width).toBeGreaterThan(0);
+  expect(bar.height).toBeGreaterThan(0);
+  expect(bar.background).not.toBe('none');
+  expect(bar.transitionProperty).toContain('height');
+  expect(bar.transitionDuration).toBeGreaterThan(0);
+  expect(bar.centerOffset).toBeLessThanOrEqual(1);
+  expect(await wave.evaluate(element => getComputedStyle(element, '::before').animationName)).not.toBe('none');
+  const glowCount = () => page.evaluate(() => document.getAnimations().filter(animation => animation.animationName === 'wave-glow').length);
+  expect(await glowCount()).toBeGreaterThan(0);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  try {
+    const reduced = await wave.evaluate(element => ({
+      glow: getComputedStyle(element, '::before').animationName,
+      transition: parseFloat(getComputedStyle(element.querySelector('i')).transitionDuration),
+    }));
+    expect(reduced.glow).toBe('none');
+    expect(reduced.transition).toBe(0);
+    expect(await glowCount()).toBe(0);
+  } finally {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  }
+
+  await page.getByRole('button', { name: 'Cancel' }).click();
+});
+
 test('capture no-match and error responses render their safe messages', async () => {
   stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
   await page.route('**/api/capture', async route => {
