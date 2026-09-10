@@ -6,6 +6,7 @@ import { Necklace } from "./necklace";
 import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
 import type { CaptureUploadResult } from "./capture-client";
 import SparkPrototype from "./spark/spark-prototype";
+import { loadLibrary } from "./spark/library-client";
 import { useRecorder } from "./use-recorder";
 import { scriptParagraphs, type Idea, type LibraryData, type Script } from "@/lib/spark-data";
 
@@ -109,9 +110,30 @@ export default function Capture({ initialLibrary, libraryError }: { initialLibra
   const [ideas, setIdeas] = useState<Idea[]>(initialLibrary?.ideas ?? []);
   const [scripts, setScripts] = useState<Script[]>(initialLibrary?.scripts ?? []);
   const [pendingScriptId, setPendingScriptId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
+  const [libraryLoadError, setLibraryLoadError] = useState(libraryError);
 
   const onIdeaCreated = (idea: Idea) => setIdeas(current => prepend(current, idea));
   const onScriptCreated = (script: Script) => setScripts(current => prepend(current, script));
+
+  async function refreshLibrary() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshError("");
+    setLibraryLoadError(false);
+    try {
+      const result = await loadLibrary();
+      if ("library" in result) {
+        setIdeas(result.library.ideas);
+        setScripts(result.library.scripts);
+      } else {
+        setRefreshError(result.error);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   function handleCreated(result: CaptureUploadResult) {
     if (result.kind === "idea") onIdeaCreated(result.idea);
@@ -133,7 +155,7 @@ export default function Capture({ initialLibrary, libraryError }: { initialLibra
         <p className="header-note">A little space for your next big idea.</p>
       </header>
       {isPhoneTab(tab)
-        ? <main aria-label="Phone mock"><SparkPrototype ideas={ideas} scripts={scripts} onIdeaCreated={onIdeaCreated} libraryError={libraryError} pendingScriptId={pendingScriptId} onPendingScriptConsumed={() => setPendingScriptId(null)} /></main>
+        ? <main aria-label="Phone mock"><SparkPrototype ideas={ideas} scripts={scripts} onIdeaCreated={onIdeaCreated} onScriptCreated={onScriptCreated} libraryError={libraryLoadError} pendingScriptId={pendingScriptId} onPendingScriptConsumed={() => setPendingScriptId(null)} onRefresh={refreshLibrary} refreshing={refreshing} refreshError={refreshError} /></main>
         : <CaptureExperience onCreated={handleCreated} onViewScript={openScript} />}
     </div>
   );

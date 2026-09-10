@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createIdea } from "./library-client";
+import { createIdea, createScriptFromIdeas } from "./library-client";
 import { scriptParagraphs, type Idea, type Script } from "@/lib/spark-data";
 import { Icon } from "./icon";
 import { Teleprompter } from "./teleprompter";
@@ -12,9 +12,13 @@ type Props = {
   ideas: Idea[];
   scripts: Script[];
   onIdeaCreated: (idea: Idea) => void;
+  onScriptCreated: (script: Script) => void;
   libraryError: boolean;
   pendingScriptId?: string | null;
   onPendingScriptConsumed?: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+  refreshError: string;
 };
 
 function Badge({ status }: { status: Idea["status"] | Script["status"] }) {
@@ -64,7 +68,7 @@ function IdeaForm({ onCreated, onCancel }: { onCreated: (idea: Idea) => void; on
   </form>;
 }
 
-export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryError, pendingScriptId, onPendingScriptConsumed }: Props) {
+export default function SparkPrototype({ ideas, scripts, onIdeaCreated, onScriptCreated, libraryError, pendingScriptId, onPendingScriptConsumed, onRefresh, refreshing, refreshError }: Props) {
   const [tab, setTab] = useState<"Ideas" | "Scripts">(pendingScriptId ? "Scripts" : "Ideas");
   const [screen, setScreen] = useState<Screen>(() => {
     const script = pendingScriptId ? scripts.find(item => item.id === pendingScriptId) : undefined;
@@ -73,6 +77,12 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryE
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
+  const scriptAbort = useRef<AbortController | null>(null);
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<string[]>([]);
+  const [creatingScript, setCreatingScript] = useState(false);
+  const [scriptError, setScriptError] = useState("");
+
+  useEffect(() => () => scriptAbort.current?.abort(), []);
 
   useEffect(() => {
     if (pendingScriptId) onPendingScriptConsumed?.();
@@ -88,8 +98,46 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryE
   const recording = screen.kind === "record";
   const dates = Array.from(new Set(ideas.map(idea => idea.date)));
 
+  function toggleIdea(ideaId: string) {
+    if (creatingScript) return;
+    setScriptError("");
+    if (selectedIdeaIds.includes(ideaId)) {
+      setSelectedIdeaIds(current => current.filter(id => id !== ideaId));
+    } else if (selectedIdeaIds.length >= 12) {
+      setScriptError("You can select up to 12 ideas.");
+    } else {
+      setSelectedIdeaIds(current => [...current, ideaId]);
+    }
+  }
+
+  async function createScript() {
+    if (creatingScript || selectedIdeaIds.length === 0) return;
+    setCreatingScript(true);
+    setScriptError("");
+    const controller = new AbortController();
+    scriptAbort.current = controller;
+    try {
+      const result = await createScriptFromIdeas(selectedIdeaIds, controller.signal);
+      if (controller.signal.aborted) return;
+      if ("script" in result) {
+        onScriptCreated(result.script);
+        setSelectedIdeaIds([]);
+        setTab("Scripts");
+        setScreen({ kind: "script", script: result.script });
+      } else {
+        setScriptError(result.error);
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setScriptError("Could not reach Spark. Check your connection and try again.");
+    } finally {
+      if (scriptAbort.current === controller) scriptAbort.current = null;
+      setCreatingScript(false);
+    }
+  }
+
   return <div className="prototype-stage">
     <div className="device-wrap">
+      <div className="phone-row">
       <div className={`iphone ${recording ? "dark-phone" : ""}`}>
         <span className="hardware-button silent-switch" /><span className="hardware-button volume-up" /><span className="hardware-button volume-down" /><span className="hardware-button power-button" />
         <div className="phone-screen">
@@ -99,12 +147,12 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryE
             {screen.kind === "library" ? <>
               <header className="library-header"><div><h1 ref={heading} tabIndex={-1}>Spark<span className="brand-period" aria-hidden="true">.</span></h1><p>Capture thoughts. Create better videos.</p></div><button className="add-button" aria-label="Add idea" onClick={() => setScreen({ kind: "new" })}><Icon name="plus" size={25} /></button></header>
               <div className="segmented-control" role="group" aria-label="Library view">{(["Ideas", "Scripts"] as const).map(name => <button key={name} aria-pressed={tab === name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>{name}</button>)}</div>
-              {tab === "Ideas" ? (ideas.length === 0 ? <div className="empty-state"><span className="small-spark">✧</span><p>No ideas yet</p><span>Press the pendant to capture one, or add it below.</span></div> : <div className="idea-groups">{dates.map(date => <section className="date-group" key={date}><div className="group-heading"><h2>{date}</h2><span>{ideas.filter(idea => idea.date === date).length} ideas</span></div><div>{ideas.filter(idea => idea.date === date).map(idea => <button className="library-row" key={idea.id} aria-label={idea.title} onClick={() => setScreen({ kind: "idea", idea })}><span className="row-icon"><Icon name="bulb" size={23} /></span><span className="row-content"><span className="row-title">{idea.title}</span><span className="row-meta">{idea.time}<span className="meta-dot">·</span><Badge status={idea.status} /></span></span><span className="row-more" aria-hidden="true">···</span></button>)}</div></section>)}</div>) : (scripts.length === 0 ? <div className="empty-state"><span className="small-spark">✧</span><p>No scripts yet</p><span>Capture an idea, then ask for a script within the hour.</span></div> : <div className="scripts-list"><div className="group-heading"><h2>Your scripts</h2><span>{scripts.length} scripts</span></div>{scripts.map(script => <button className="library-row script-row" key={script.id} aria-label={script.title} onClick={() => setScreen({ kind: "script", script })}><span className="row-icon"><Icon name="script" size={24} /></span><span className="row-content"><span className="row-title">{script.title}</span><span className="row-meta">{script.ideaIds.length} ideas<span className="meta-dot">·</span><Badge status={script.status} /></span></span><span className="row-more" aria-hidden="true">···</span></button>)}<div className="library-footnote"><span className="small-spark">✧</span><p>A few thoughts. A new perspective.</p></div></div>)}
+              {tab === "Ideas" ? (ideas.length === 0 ? <div className="empty-state"><span className="small-spark">✧</span><p>No ideas yet</p><span>Press the pendant to capture one, or add it below.</span></div> : <><div className="idea-groups">{dates.map(date => <section className="date-group" key={date}><div className="group-heading"><h2>{date}</h2><span>{ideas.filter(idea => idea.date === date).length} ideas</span></div><div>{ideas.filter(idea => idea.date === date).map(idea => <div className="library-row idea-choice" key={idea.id}><input type="checkbox" aria-label={`Select ${idea.title}`} checked={selectedIdeaIds.includes(idea.id)} disabled={creatingScript} onChange={() => toggleIdea(idea.id)} /><button className="idea-row-button" aria-label={idea.title} onClick={() => setScreen({ kind: "idea", idea })}><span className="row-icon"><Icon name="bulb" size={23} /></span><span className="row-content"><span className="row-title">{idea.title}</span><span className="row-meta">{idea.time}<span className="meta-dot">·</span><Badge status={idea.status} /></span></span><span className="row-more" aria-hidden="true">···</span></button></div>)}</div></section>)}</div>{selectedIdeaIds.length > 0 && <div className="script-create-action"><button className="primary-button" onClick={() => void createScript()} disabled={creatingScript}>{creatingScript ? "Creating script…" : `Create script (${selectedIdeaIds.length})`}</button>{scriptError && <p role="alert" className="form-error">{scriptError}</p>}</div>}</>) : (scripts.length === 0 ? <div className="empty-state"><span className="small-spark">✧</span><p>No scripts yet</p><span>Select one or more ideas to create one.</span></div> : <div className="scripts-list"><div className="group-heading"><h2>Your scripts</h2><span>{scripts.length} scripts</span></div>{scripts.map(script => <button className="library-row script-row" key={script.id} aria-label={script.title} onClick={() => setScreen({ kind: "script", script })}><span className="row-icon"><Icon name="script" size={24} /></span><span className="row-content"><span className="row-title">{script.title}</span><span className="row-meta">{script.ideaIds.length} ideas<span className="meta-dot">·</span><Badge status={script.status} /></span></span><span className="row-more" aria-hidden="true">···</span></button>)}<div className="library-footnote"><span className="small-spark">✧</span><p>A few thoughts. A new perspective.</p></div></div>)}
             </> : <>
               <nav className="detail-nav" aria-label="Back navigation"><button className="back-button" aria-label={screen.kind === "idea" || screen.kind === "new" ? "Back to ideas" : "Back to scripts"} onClick={goHome}><Icon name="back" size={22} /><span>{screen.kind === "script" ? "Scripts" : "Ideas"}</span></button><span>{screen.kind === "new" ? "NEW IDEA" : screen.kind === "idea" ? "YOUR THOUGHT" : "SCRIPT"}</span></nav>
               {screen.kind === "new" ? <><h1 className="detail-title" ref={heading} tabIndex={-1}>Catch a spark.</h1><IdeaForm onCancel={goHome} onCreated={idea => { onIdeaCreated(idea); setTab("Ideas"); goHome(); }} /></> : screen.kind === "idea" ? <>
-                <div className="idea-detail-icon row-icon"><Icon name="bulb" size={28} /></div><h1 className="detail-title" ref={heading} tabIndex={-1}>{screen.idea.title}</h1><div className="detail-meta"><Badge status={screen.idea.status} /><span>{screen.idea.date} · {screen.idea.time}</span></div>
-                <section className="thought-card"><h2>The thought</h2><p>{screen.idea.note || "No extra notes yet. Sometimes a title is all you need."}</p></section>
+                <div className="idea-detail-icon row-icon"><Icon name="bulb" size={28} /></div><div className="detail-meta"><Badge status={screen.idea.status} /><span>{screen.idea.date} · {screen.idea.time}</span></div>
+                <section className="thought-card" ref={heading} tabIndex={-1}><h2>The thought</h2><p>{screen.idea.note || "No extra notes yet. Sometimes a title is all you need."}</p></section>
                 {scripts.filter(script => script.ideaIds.includes(screen.idea.id)).map(script => <button className="linked-script" key={script.id} onClick={() => setScreen({ kind: "script", script })}><Icon name="script" size={23} /><span><small>PART OF A SCRIPT</small>{script.title}</span><Icon name="arrow" size={19} /></button>)}
               </> : <>
                 <h1 className="detail-title" ref={heading} tabIndex={-1}>{screen.script.title}</h1>
@@ -116,6 +164,9 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryE
           <div className="home-indicator" aria-hidden="true" />
         </div>
       </div>
+      <button type="button" className="refresh-button" onClick={onRefresh} disabled={refreshing} aria-label="Refresh phone data" aria-busy={refreshing}><Icon name="reset" size={22} /></button>
+      </div>
+      {refreshError && <p className="refresh-error" role="alert">{refreshError}</p>}
       <div className="prototype-caption"><span className="caption-dot" />Interactive prototype<span className="caption-divider">/</span>Made for your next idea</div>
     </div>
   </div>;
