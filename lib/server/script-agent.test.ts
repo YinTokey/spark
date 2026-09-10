@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
+import * as scriptAgent from './script-agent.ts';
 import { generateScript, ScriptAgentError, type RunScriptAgent } from './script-agent.ts';
 
 const RECENT_ID = '22222222-2222-4222-8222-222222222222';
@@ -28,6 +29,26 @@ test('retrieval applies exactly one server hour and the command hint, exposing o
   assert.equal(calls[0][0].toISOString(), '2026-09-08T04:00:00.000Z');
   assert.equal(calls[0][1], 'walking');
   assert.deepEqual(result, output);
+});
+
+test('generates only from explicitly selected ideas, regardless of when they were saved', async () => {
+  assert.equal(typeof scriptAgent.generateScriptFromIdeas, 'function');
+  const selected = { ...recent, created_at: '2020-01-01T00:00:00.000Z' };
+  const result = await scriptAgent.generateScriptFromIdeas({
+    ideas: [selected],
+    runAgent: async ({ retrieveRecentIdeas }) => {
+      assert.deepEqual(await retrieveRecentIdeas({}), [selected]);
+      return output;
+    },
+  });
+  assert.deepEqual(result, output);
+});
+
+test('rejects an empty or oversized explicit idea selection before running the agent', async () => {
+  const runAgent = mock.fn(validRunner);
+  await assert.rejects(scriptAgent.generateScriptFromIdeas({ ideas: [], runAgent }), /invalid_input/);
+  await assert.rejects(scriptAgent.generateScriptFromIdeas({ ideas: Array.from({ length: 13 }, () => recent), runAgent }), /invalid_input/);
+  assert.equal(runAgent.mock.callCount(), 0);
 });
 
 test('a bounded explicit tool topic takes precedence over the command hint', async () => {

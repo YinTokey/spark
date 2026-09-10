@@ -41,6 +41,18 @@ test('recent ideas are user-scoped by bearer token, one-hour cutoff, and local h
   assert.equal(new Headers(fetchMock.mock.calls[0].arguments[1]?.headers).get('Authorization'), 'Bearer user-token');
 });
 
+test('loads exactly the selected user-owned ideas without a recency filter', async () => {
+  configureSupabase();
+  const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json([
+    idea(FOCUS_NEW_ID, 'New idea'), idea(FOCUS_OLD_ID, 'Old idea', '2020-01-01T00:00:00.000Z'),
+  ]));
+  const result = await createSparkRepository('user-token').findIdeasByIds([FOCUS_OLD_ID, FOCUS_NEW_ID]);
+  assert.deepEqual(result, [idea(FOCUS_NEW_ID, 'New idea'), idea(FOCUS_OLD_ID, 'Old idea', '2020-01-01T00:00:00.000Z')]);
+  const url = new URL(String(fetchMock.mock.calls[0].arguments[0]));
+  assert.equal(url.searchParams.get('created_at'), null);
+  assert.match(url.searchParams.get('id') ?? '', /in\.\(/);
+});
+
 test('non-empty hints without searchable terms do not return unrelated recent ideas', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => Response.json([
@@ -119,6 +131,7 @@ test('inserts send only safe headers and exactly one representation row', async 
   assert.equal(headers.get('Content-Type'), 'application/json');
   assert.equal(headers.get('X-Client-Info'), null);
   assert.deepEqual(JSON.parse(String(init?.body)), { text: 'A captured thought' });
+  assert.equal(new URL(String(fetchMock.mock.calls[0].arguments[0])).searchParams.get('select'), 'id,text,created_at');
 });
 
 test('script insert verifies every provenance id is visible to the user before inserting', async () => {
@@ -134,6 +147,7 @@ test('script insert verifies every provenance id is visible to the user before i
   assert.equal(fetchMock.mock.callCount(), 2);
   assert.match(String(fetchMock.mock.calls[0].arguments[0]), /id=in/);
   assert.deepEqual(JSON.parse(String(fetchMock.mock.calls[1].arguments[1]?.body)), { text: scriptText, idea_ids: [FOCUS_NEW_ID] });
+  assert.equal(new URL(String(fetchMock.mock.calls[1].arguments[0])).searchParams.get('select'), 'id,text,idea_ids,created_at');
 });
 
 test('does not insert a script when any provenance id is not owned', async () => {

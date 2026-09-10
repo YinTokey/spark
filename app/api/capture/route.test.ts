@@ -20,8 +20,9 @@ function request(form?: FormData, headers: Record<string, string> = {}) {
 
 function boundary() {
   return mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
-    const path = String(url);
-    assert.equal(new Headers(init?.headers).get('Authorization'), path.includes('openai.com') ? 'Bearer fake-unit-test-only' : 'Bearer test-token');
+    const target = String(url);
+    const path = new URL(target).pathname;
+    assert.equal(new Headers(init?.headers).get('Authorization'), target.includes('openai.com') ? 'Bearer fake-unit-test-only' : 'Bearer test-token');
     if (path.endsWith('/auth/v1/user')) return Response.json({ id });
     if (path.endsWith('/audio/transcriptions')) return Response.json({ text: 'A captured idea' });
     if (path.endsWith('/rest/v1/ideas')) return Response.json([{ id, text: 'A captured idea', created_at: '2026-09-08T12:00:00Z' }]);

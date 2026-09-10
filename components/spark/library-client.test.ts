@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
-import { createIdea } from "./library-client.ts";
+import * as libraryClient from "./library-client.ts";
+import { createIdea, loadLibrary } from "./library-client.ts";
 
 const idea = { id: "idea-1", title: "A thought", note: "A thought", date: "Today", time: "12:00", status: "Raw" as const };
 
@@ -63,4 +64,56 @@ test("does not leak unexpected server fields into the returned idea", async () =
   const result = await createIdea("A thought");
   assert.ok("idea" in result);
   if ("idea" in result) assert.deepEqual(result.idea, idea);
+});
+
+const script = { id: "script-1", title: "A script", status: "Ready to record", ideaIds: [idea.id], text: "A script" };
+
+test("creates a script from the explicitly selected ideas", async () => {
+  assert.equal(typeof libraryClient.createScriptFromIdeas, "function");
+  const fetchMock = mock.method(globalThis, "fetch", async () => Response.json({ script }));
+  const result = await libraryClient.createScriptFromIdeas([idea.id]);
+  assert.deepEqual(result, { script });
+  const [url, init] = fetchMock.mock.calls[0].arguments as [string | URL | Request, RequestInit | undefined];
+  assert.equal(String(url), "/api/scripts");
+  assert.equal(init?.method, "POST");
+  assert.deepEqual(JSON.parse(String(init?.body)), { ideaIds: [idea.id] });
+});
+
+test("loadLibrary fetches the library and returns validated ideas and scripts", async () => {
+  const fetchMock = mock.method(globalThis, "fetch", async () => Response.json({ ideas: [idea], scripts: [script] }));
+  const result = await loadLibrary();
+  assert.deepEqual(result, { library: { ideas: [idea], scripts: [script] } });
+  const [url, init] = fetchMock.mock.calls[0].arguments as [string | URL | Request, RequestInit | undefined];
+  assert.equal(String(url), "/api/library");
+  assert.equal(init?.cache, "no-store");
+});
+
+test("loadLibrary maps HTTP failures to safe text without trusting the server body", async () => {
+  for (const [status, expected] of [[401, "sign in"], [503, "connection"]] as const) {
+    mock.restoreAll();
+    mock.method(globalThis, "fetch", async () => new Response('{"error":"secret"}', { status }));
+    const result = await loadLibrary();
+    assert.equal("error" in result, true);
+    assert.match("error" in result ? result.error : "", new RegExp(expected, "i"));
+  }
+});
+
+test("loadLibrary fails closed on malformed and mismatched payloads", async () => {
+  for (const body of ['{', '{}', '{ "ideas": [null] }', '{ "ideas": [{}], "scripts": [] }', '{ "ideas": [], "scripts": "nope" }']) {
+    mock.restoreAll();
+    mock.method(globalThis, "fetch", async () => Response.json(JSON.parse(body)));
+    assert.ok("error" in await loadLibrary());
+  }
+});
+
+test("loadLibrary fails closed when the response exceeds the size cap", async () => {
+  const oversized = "x".repeat(600 * 1024 + 1);
+  mock.method(globalThis, "fetch", async () => new Response(oversized, { headers: { "content-length": String(oversized.length) } }));
+  assert.ok("error" in await loadLibrary());
+});
+
+test("an aborted loadLibrary request rethrows instead of returning a failure", async () => {
+  const controller = new AbortController();
+  mock.method(globalThis, "fetch", async () => { throw new DOMException("The operation was aborted.", "AbortError"); });
+  await assert.rejects(loadLibrary(controller.signal), (error: unknown) => error instanceof DOMException && error.name === "AbortError");
 });

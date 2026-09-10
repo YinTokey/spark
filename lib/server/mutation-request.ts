@@ -67,7 +67,7 @@ export async function readMutationBody(request: NextRequest, maxBytes: number): 
   }
 }
 
-export function mutationFailure(error: unknown, operation: 'capture' | 'idea_write') {
+export function mutationFailure(error: unknown, operation: 'capture' | 'idea_write' | 'realtime_session' | 'script_generation') {
   const mapped = error instanceof MutationError ? error : new MutationError('service_unavailable', 503, 'This service is temporarily unavailable. Please try again later.');
   console.info('mutation.rejected', { operation, status: mapped.code, correlationId: randomUUID() });
   return privateJson({ code: mapped.code, error: mapped.message }, mapped.status);

@@ -20,6 +20,7 @@ test('keeps allowances isolated by user and operation', () => {
   assert.equal(limiter.consume('user-1', 'ai_capture', 1), true);
   assert.equal(limiter.consume('user-1', 'ai_capture', 1), false);
   assert.equal(limiter.consume('user-1', 'idea_write', 1), true);
+  assert.equal(limiter.consume('user-1', 'realtime_session', 1), true);
   assert.equal(limiter.consume('user-2', 'ai_capture', 1), true);
 });
 

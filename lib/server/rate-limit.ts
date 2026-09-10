@@ -1,4 +1,4 @@
-type Operation = 'ai_capture' | 'idea_write';
+type Operation = 'ai_capture' | 'idea_write' | 'realtime_session' | 'script_generation';
 type Window = { hour: number; count: number };
 
 const HOUR_MS = 60 * 60 * 1_000;
