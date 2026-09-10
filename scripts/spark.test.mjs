@@ -4,13 +4,10 @@ import { createServer } from 'node:http';
 import { chromium, expect } from '@playwright/test';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
-const IDEA = { id: '22222222-2222-4222-8222-222222222222', transcript: 'Walking unlocks ideas.', created_at: '2026-09-08T04:42:00.000Z' };
+const IDEA = { id: '22222222-2222-4222-8222-222222222222', text: 'Walking unlocks ideas.', created_at: '2026-09-08T04:42:00.000Z' };
 const SCRIPT = {
   id: '33333333-3333-4333-8333-333333333333',
-  title: 'Why walking unlocks ideas',
-  hook: 'Your best idea may be one walk away.',
-  body: 'Leave the desk for ten minutes.\n\nLet the unfinished thought move with you.',
-  outro: 'Take the walk and keep the thought.',
+  text: 'Why walking unlocks ideas\n\nYour best idea may be one walk away.\n\nLeave the desk for ten minutes.\n\nLet the unfinished thought move with you.\n\nTake the walk and keep the thought.',
   idea_ids: [IDEA.id],
   created_at: '2026-09-08T04:55:00.000Z',
 };
@@ -36,14 +33,12 @@ before(async () => {
     const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
     res.setHeader('Content-Type', 'application/json');
     if (pathname === '/auth/v1/user') return res.end(JSON.stringify({ id: USER_ID }));
-    if (pathname === '/rest/v1/rpc/consume_ai_request') return res.end('true');
-    if (pathname === '/rest/v1/rpc/consume_idea_write') return res.end('true');
     if (pathname === '/rest/v1/ideas' && req.method === 'GET') return res.end(JSON.stringify(stubState.ideas));
     if (pathname === '/rest/v1/scripts' && req.method === 'GET') return res.end(JSON.stringify(stubState.scripts));
     if (pathname === '/rest/v1/ideas' && req.method === 'POST') {
       if (stubState.ideaStatus !== 200) { res.statusCode = stubState.ideaStatus; return res.end('{}'); }
       const body = JSON.parse((await readBody(req)) || '{}');
-      return res.end(JSON.stringify([{ id: '44444444-4444-4444-8444-444444444444', transcript: body.transcript, created_at: '2026-09-08T05:00:00.000Z' }]));
+      return res.end(JSON.stringify([{ id: '44444444-4444-4444-8444-444444444444', text: body.text, created_at: '2026-09-08T05:00:00.000Z' }]));
     }
     res.statusCode = 404;
     res.end('{}');
@@ -116,6 +111,8 @@ test('database ideas and scripts appear on Phone without fixture fallbacks', asy
   await page.getByRole('button', { name: 'Scripts', exact: true }).click();
   await page.getByRole('button', { name: 'Why walking unlocks ideas', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Why walking unlocks ideas', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Hook|Key points|Outro/ })).toHaveCount(0);
+  await expect(page.getByText('Your best idea may be one walk away.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Record with Teleprompter' }).click();
   await expect(page.getByText('Leave the desk for ten minutes.', { exact: true })).toBeVisible();
 });
@@ -179,6 +176,23 @@ test('capture no-match and error responses render their safe messages', async ()
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
   await expect(page.locator('.error-message')).toHaveText(/try again/i);
+});
+
+test('non-retryable capture failures do not resubmit the rejected recording', async () => {
+  stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
+  let requests = 0;
+  await page.route('**/api/capture', async route => {
+    requests++;
+    await route.fulfill({ status: 413, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await expect(page.getByRole('button', { name: 'Record again' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Record again' }).click();
+  await expect(page.getByRole('button', { name: 'Finish my thought' })).toBeVisible();
+  expect(requests).toBe(1);
 });
 
 test('reset during a delayed capture prevents the stale result from appearing', async () => {

@@ -58,7 +58,7 @@ The tool accepts a bounded optional topic/search hint and applies every authorit
 
 The model chooses the tool arguments so it can request ideas relevant to the command rather than receiving every idea automatically. Agent instructions require at least one retrieval call and prohibit inventing source ideas. If nothing matches, the run returns a safe “not enough recent ideas” outcome and inserts no script.
 
-Structured output contains a concise title, hook, body, and outro. The stored script also records the selected idea IDs. Tool arguments, tool results, and agent output are runtime-validated with Zod.
+Structured output contains the complete script as one text value plus the selected idea IDs. Its first non-empty line is a concise display title; the remaining text is the spoken script without section labels. Tool arguments, tool results, and agent output are runtime-validated with Zod.
 
 ## Data Model and Migration
 
@@ -68,29 +68,24 @@ Add a Supabase SQL migration with row-level security and ownership policies base
 
 - id: generated UUID primary key
 - user_id: UUID referencing Supabase Auth users
-- transcript: non-empty text with a database length constraint
+- text: non-empty idea content with a database length constraint
 - created_at: timestamp with time zone, default now()
 
-The display title, date/time, and Raw status are derived from transcript and timestamp, avoiding duplicate presentation state.
+The display title, date/time, and Raw status are derived from idea text and timestamp, avoiding duplicate presentation state.
 
 ### scripts
 
 - id: generated UUID primary key
 - user_id: UUID referencing Supabase Auth users
-- title: bounded non-empty text
-- hook: bounded non-empty text
-- body: bounded non-empty text
-- outro: bounded non-empty text
+- text: bounded non-empty full script, with the display title on its first non-empty line
 - idea_ids: bounded non-empty UUID array
 - created_at: timestamp with time zone, default now()
 
-Script status is initially derived as Ready to record. The idea IDs preserve provenance without adding a join table in this version.
-
-### ai_rate_limits
-
-Add a minimal operational table and transaction-safe database function for per-user AI request accounting. It is not exposed in the UI. The function uses auth.uid(), a fixed time window, and an explicit maximum.
+Script title and Ready to record status are derived for display. The complete script remains one plain text value, and the idea IDs preserve provenance without adding a join table in this version.
 
 All tables enable RLS. Policies permit authenticated users to select and insert only their own product rows. Updates and deletes are out of scope. Indexes support user/time queries and recent-idea retrieval.
+
+For this single-instance demo, a bounded in-memory fixed-window limiter allows 20 AI captures and 60 manual saves per user per hour. Counters reset when the server process restarts. A distributed deployment would require replacing this module with shared storage.
 
 ## Server Boundaries
 

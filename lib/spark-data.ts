@@ -1,18 +1,14 @@
 export const MAX_TITLE_LENGTH = 56;
-export const MAX_SCRIPT_PARAGRAPHS = 24;
 
 export type IdeaRecord = {
   id: string;
-  transcript: string;
+  text: string;
   created_at: string;
 };
 
 export type ScriptRecord = {
   id: string;
-  title: string;
-  hook: string;
-  body: string;
-  outro: string;
+  text: string;
   idea_ids: string[];
   created_at: string;
 };
@@ -31,9 +27,7 @@ export type Script = {
   title: string;
   status: "Ready to record" | "Draft" | "Editing";
   ideaIds: string[];
-  hook: string;
-  points: string[];
-  outro: string;
+  text: string;
 };
 
 export type LibraryData = { ideas: Idea[]; scripts: Script[] };
@@ -60,31 +54,45 @@ function relativeDate(value: Date, now: Date) {
 }
 
 export function toIdea(record: IdeaRecord, now = new Date()): Idea {
-  const firstLine = record.transcript.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
+  const firstLine = record.text.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
   const createdAt = new Date(record.created_at);
 
   return {
     id: record.id,
     title: truncateTitle(firstLine),
-    note: record.transcript,
+    note: record.text,
     date: relativeDate(createdAt, now),
     time: new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(createdAt),
     status: "Raw",
   };
 }
 
+function scriptLines(text: string) {
+  return text.split(/\r?\n/);
+}
+
+function firstContentLine(lines: string[]) {
+  return lines.findIndex((line) => line.trim().length > 0);
+}
+
+export function scriptBody(text: string) {
+  const lines = scriptLines(text);
+  const titleLine = firstContentLine(lines);
+  return titleLine < 0 ? "" : lines.slice(titleLine + 1).join("\n").trim();
+}
+
+export function scriptParagraphs(text: string) {
+  return scriptBody(text).split(/\r?\n\s*\r?\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+}
+
 export function toScript(record: ScriptRecord): Script {
+  const lines = scriptLines(record.text);
+  const titleLine = firstContentLine(lines);
   return {
     id: record.id,
-    title: record.title,
+    title: truncateTitle(titleLine < 0 ? "" : lines[titleLine].trim()),
     status: "Ready to record",
     ideaIds: record.idea_ids,
-    hook: record.hook,
-    points: record.body
-      .split(/\r?\n\s*\r?\n/)
-      .map((paragraph) => paragraph.trim())
-      .filter(Boolean)
-      .slice(0, MAX_SCRIPT_PARAGRAPHS),
-    outro: record.outro,
+    text: record.text,
   };
 }

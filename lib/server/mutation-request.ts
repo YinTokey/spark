@@ -21,13 +21,14 @@ export async function authorizeMutation(request: NextRequest, maxBytes: number) 
   // Browser mutations always send Origin; absence is rejected along with mismatches.
   if (request.headers.get('origin') !== request.nextUrl.origin) throw new MutationError('origin_rejected', 403, 'Request not allowed.');
   const token = request.cookies.get('spark-access-token')?.value;
-  if (!token || !await authenticateAccessToken(token)) throw new MutationError('unauthorized', 401, 'Please sign in to continue.');
+  const user = token ? await authenticateAccessToken(token) : null;
+  if (!token || !user) throw new MutationError('unauthorized', 401, 'Please sign in to continue.');
   const declaredLength = request.headers.get('content-length');
   if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxBytes)) {
     throw new MutationError('body_too_large', 413, 'Request is too large.');
   }
   if (request.signal.aborted) throw new MutationError('request_cancelled', 409, 'Request was cancelled.');
-  return token;
+  return { token, userId: user.id };
 }
 
 export async function readMutationBody(request: NextRequest, maxBytes: number): Promise<Blob> {

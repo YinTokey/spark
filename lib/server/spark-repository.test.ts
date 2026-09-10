@@ -5,6 +5,7 @@ import { createSparkRepository, RepositoryError } from './spark-repository.ts';
 const FOCUS_NEW_ID = '22222222-2222-4222-8222-222222222222';
 const FOCUS_OLD_ID = '33333333-3333-4333-8333-333333333333';
 const OTHER_ID = '44444444-4444-4444-8444-444444444444';
+const scriptText = 'Focus video\n\nA complete spoken script.';
 
 afterEach(() => {
   mock.restoreAll();
@@ -17,8 +18,8 @@ function configureSupabase() {
   process.env.SUPABASE_PUBLISHABLE_KEY = 'publishable-test-key';
 }
 
-function idea(id: string, transcript: string, created_at = '2026-09-08T03:30:00.000Z') {
-  return { id, transcript, created_at };
+function idea(id: string, text: string, created_at = '2026-09-08T03:30:00.000Z') {
+  return { id, text, created_at };
 }
 
 test('recent ideas are user-scoped by bearer token, one-hour cutoff, and local hint ranking', async () => {
@@ -86,7 +87,7 @@ test('script provenance must be a non-empty bounded UUID list', async () => {
   configureSupabase();
   const repository = createSparkRepository('user-token');
   await assert.rejects(
-    repository.insertScript({ title: 'x', hook: 'x', body: 'x', outro: 'x', ideaIds: [] }),
+    repository.insertScript({ text: 'x', ideaIds: [] }),
     /invalid_script/,
   );
 });
@@ -96,7 +97,7 @@ test('library loads newest ideas and scripts with bounded ordered queries', asyn
   const scriptId = '55555555-5555-4555-8555-555555555555';
   const fetchMock = mock.method(globalThis, 'fetch', async (url: string) => Response.json(
     url.includes('/ideas?') ? [idea(FOCUS_NEW_ID, 'Focus today')] : [{
-      id: scriptId, title: 'Focus video', hook: 'Hook', body: 'Body', outro: 'Outro', idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00.000Z',
+      id: scriptId, text: scriptText, idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00.000Z',
     }],
   ));
   const library = await createSparkRepository('user-token').loadLibrary();
@@ -117,6 +118,7 @@ test('inserts send only safe headers and exactly one representation row', async 
   assert.equal(headers.get('Authorization'), 'Bearer user-token');
   assert.equal(headers.get('Content-Type'), 'application/json');
   assert.equal(headers.get('X-Client-Info'), null);
+  assert.deepEqual(JSON.parse(String(init?.body)), { text: 'A captured thought' });
 });
 
 test('script insert verifies every provenance id is visible to the user before inserting', async () => {
@@ -124,13 +126,14 @@ test('script insert verifies every provenance id is visible to the user before i
   const scriptId = '55555555-5555-4555-8555-555555555555';
   const fetchMock = mock.method(globalThis, 'fetch', async (url: string) => {
     if (url.includes('/ideas?')) return Response.json([{ id: FOCUS_NEW_ID }]);
-    return Response.json([{ id: scriptId, title: 'Focus video', hook: 'Hook', body: 'Body', outro: 'Outro', idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00.000Z' }]);
+    return Response.json([{ id: scriptId, text: scriptText, idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00.000Z' }]);
   });
   const repository = createSparkRepository('user-token');
-  const script = await repository.insertScript({ title: 'Focus video', hook: 'Hook', body: 'Body', outro: 'Outro', ideaIds: [FOCUS_NEW_ID] });
+  const script = await repository.insertScript({ text: scriptText, ideaIds: [FOCUS_NEW_ID] });
   assert.equal(script.id, scriptId);
   assert.equal(fetchMock.mock.callCount(), 2);
   assert.match(String(fetchMock.mock.calls[0].arguments[0]), /id=in/);
+  assert.deepEqual(JSON.parse(String(fetchMock.mock.calls[1].arguments[1]?.body)), { text: scriptText, idea_ids: [FOCUS_NEW_ID] });
 });
 
 test('does not insert a script when any provenance id is not owned', async () => {
@@ -138,7 +141,7 @@ test('does not insert a script when any provenance id is not owned', async () =>
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json([]));
   const repository = createSparkRepository('user-token');
   await assert.rejects(
-    repository.insertScript({ title: 'Focus video', hook: 'Hook', body: 'Body', outro: 'Outro', ideaIds: [FOCUS_NEW_ID] }),
+    repository.insertScript({ text: scriptText, ideaIds: [FOCUS_NEW_ID] }),
     (error: unknown) => error instanceof RepositoryError && error.code === 'invalid_script',
   );
   assert.equal(fetchMock.mock.callCount(), 1);
@@ -150,9 +153,9 @@ test('cancellation while verifying script ownership cannot start the later inser
   const external = mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(init?.signal?.aborted, false);
     if (String(url).includes('/ideas?')) { controller.abort(); return Response.json([{ id: FOCUS_NEW_ID }]); }
-    return Response.json([{ id: '55555555-5555-4555-8555-555555555555', title: 'Focus', hook: 'Hook', body: 'Body', outro: 'Outro', idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00Z' }]);
+    return Response.json([{ id: '55555555-5555-4555-8555-555555555555', text: scriptText, idea_ids: [FOCUS_NEW_ID], created_at: '2026-09-08T03:30:00Z' }]);
   });
-  await assert.rejects(createSparkRepository('user-token').insertScript({ title: 'Focus', hook: 'Hook', body: 'Body', outro: 'Outro', ideaIds: [FOCUS_NEW_ID] }, controller.signal), /cancelled/);
+  await assert.rejects(createSparkRepository('user-token').insertScript({ text: scriptText, ideaIds: [FOCUS_NEW_ID] }, controller.signal), /cancelled/);
   assert.equal(external.mock.callCount(), 1);
   assert.equal(external.mock.calls[0].arguments[1]?.signal?.aborted, true);
 });
@@ -162,40 +165,15 @@ test('already cancelled repository operations cannot send an external request', 
   const external = mock.method(globalThis, 'fetch', async () => Response.json(true));
   const repository = createSparkRepository('user-token');
   const signal = AbortSignal.abort();
-  await assert.rejects(repository.consumeAiRequest(signal), /cancelled/);
-  await assert.rejects(repository.consumeIdeaWrite(signal), /cancelled/);
   await assert.rejects(repository.insertIdea('An idea', signal), /cancelled/);
   await assert.rejects(repository.findRecentIdeas(new Date(), '', signal), /cancelled/);
   assert.equal(external.mock.callCount(), 0);
 });
 
-test('rate RPC returns false and rejects unexpected database fields', async () => {
+test('rejects unexpected database fields', async () => {
   configureSupabase();
-  mock.method(globalThis, 'fetch', async () => Response.json(false));
-  assert.equal(await createSparkRepository('user-token').consumeAiRequest(), false);
-  mock.restoreAll();
   mock.method(globalThis, 'fetch', async () => Response.json([{ ...idea(FOCUS_NEW_ID, 'Focus'), extra: 'unexpected' }]));
   await assert.rejects(createSparkRepository('user-token').loadLibrary(), /upstream_invalid/);
-});
-
-test('manual write allowance uses a separate authenticated no-argument RPC', async () => {
-  configureSupabase();
-  const external = mock.method(globalThis, 'fetch', async () => Response.json(true));
-  assert.equal(await createSparkRepository('user-token').consumeIdeaWrite(), true);
-  const [url, init] = external.mock.calls[0].arguments;
-  assert.equal(url, 'https://project.supabase.co/rest/v1/rpc/consume_idea_write');
-  assert.equal(init?.method, 'POST');
-  assert.equal(init?.body, '{}');
-  assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer user-token');
-});
-
-test('manual write allowance handles denial and rejects malformed responses without retries', async () => {
-  configureSupabase();
-  const external = mock.method(globalThis, 'fetch', async () => Response.json(false));
-  assert.equal(await createSparkRepository('user-token').consumeIdeaWrite(), false);
-  external.mock.mockImplementation(async () => Response.json({ allowed: true }));
-  await assert.rejects(createSparkRepository('user-token').consumeIdeaWrite(), /upstream_invalid/);
-  assert.equal(external.mock.callCount(), 2);
 });
 
 test('maps network failures, timeouts, response overflow, and invalid JSON to stable errors', async () => {

@@ -12,7 +12,6 @@ export type CaptureResult =
 
 const failures = {
   rate_limited: [429, 'Too many captures. Please wait an hour before trying again.'],
-  rate_limit_unavailable: [503, 'Capture is temporarily unavailable. Please try again later.'],
   ai_not_configured: [503, 'AI capture is temporarily unavailable. Please try again later.'],
   transcription_failed: [502, 'Could not transcribe this recording. Please try again.'],
   idea_save_failed: [502, 'Could not confirm that your idea was saved. Check your library before trying again.'],
@@ -34,7 +33,8 @@ export class CaptureWorkflowError extends Error {
 }
 
 type Dependencies = {
-  repository: Pick<ReturnType<typeof createSparkRepository>, 'consumeAiRequest' | 'insertIdea' | 'findRecentIdeas' | 'insertScript'>;
+  repository: Pick<ReturnType<typeof createSparkRepository>, 'insertIdea' | 'findRecentIdeas' | 'insertScript'>;
+  consumeCaptureSlot: () => boolean;
   transcribeAudio?: typeof transcribeAudio;
   parseScriptCommand?: typeof parseScriptCommand;
   generateScript?: typeof generateScript;
@@ -44,12 +44,12 @@ type Dependencies = {
 export async function processCapture(file: File, deps: Dependencies): Promise<CaptureResult> {
   const correlationId = randomUUID();
   const startedAt = Date.now();
-  let stage: FailureCode = 'rate_limit_unavailable';
+  let stage: FailureCode = 'rate_limited';
   let status = 'failed';
   const assertActive = () => { if (deps.signal?.aborted) throw new CaptureWorkflowError('capture_cancelled'); };
   try {
     assertActive();
-    if (!await deps.repository.consumeAiRequest()) throw new CaptureWorkflowError('rate_limited');
+    if (!deps.consumeCaptureSlot()) throw new CaptureWorkflowError('rate_limited');
     assertActive();
     stage = 'transcription_failed';
     const transcript = await (deps.transcribeAudio ?? transcribeAudio)(file, { correlationId, signal: deps.signal });

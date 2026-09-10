@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { toIdea, toScript } from "./spark-data.ts";
+import { scriptBody, scriptParagraphs, toIdea, toScript } from "./spark-data.ts";
 
 test("maps a database idea into phone presentation without duplicated stored fields", () => {
   const idea = toIdea({
     id: "11111111-1111-4111-8111-111111111111",
-    transcript: "Walking without headphones gives unfinished thoughts room to connect.",
+    text: "Walking without headphones gives unfinished thoughts room to connect.",
     created_at: "2026-09-08T04:42:00.000Z",
   }, new Date("2026-09-08T05:00:00.000Z"));
 
@@ -16,19 +16,17 @@ test("maps a database idea into phone presentation without duplicated stored fie
   assert.equal(idea.status, "Raw");
 });
 
-test("maps script body paragraphs for the detail view and teleprompter", () => {
+test("keeps the full script text and derives its display title from the first non-empty line", () => {
+  const text = "\nWhy walking unlocks ideas\n\nYour best idea may be one walk away.\n\nLeave the desk for ten minutes.";
   const script = toScript({
     id: "22222222-2222-4222-8222-222222222222",
-    title: "Why walking unlocks ideas",
-    hook: "Your best idea may be one walk away.",
-    body: "Leave the desk for ten minutes.\n\nLet the unfinished thought move with you.",
-    outro: "Take the walk and keep the thought.",
+    text,
     idea_ids: ["11111111-1111-4111-8111-111111111111"],
     created_at: "2026-09-08T04:55:00.000Z",
   });
 
-  assert.deepEqual(script.points, [
-    "Leave the desk for ten minutes.",
-    "Let the unfinished thought move with you.",
-  ]);
+  assert.equal(script.title, "Why walking unlocks ideas");
+  assert.equal(script.text, text);
+  assert.equal(scriptBody(script.text), "Your best idea may be one walk away.\n\nLeave the desk for ten minutes.");
+  assert.deepEqual(scriptParagraphs(script.text), ["Your best idea may be one walk away.", "Leave the desk for ten minutes."]);
 });

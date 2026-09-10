@@ -5,17 +5,21 @@ export type CaptureUploadResult =
   | { kind: "idea"; idea: Idea }
   | { kind: "script"; script: Script }
   | { kind: "no_recent_ideas"; message: string }
-  | { kind: "error"; message: string; retryable: boolean };
+  | { kind: "error"; message: string; recovery: "retry" | "record_again" | "sign_in" | "wait" };
 
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-const statusMessages: Record<number, { message: string; retryable: boolean }> = {
-  401: { message: "Please sign in again to keep capturing ideas.", retryable: false },
-  413: { message: "That recording is too large. Try a shorter thought.", retryable: false },
-  429: { message: "Too many captures. Please wait an hour before trying again.", retryable: false },
-  502: { message: "Spark couldn't finish this one. Please try again.", retryable: true },
-  503: { message: "Spark is temporarily unavailable. Please try again later.", retryable: true },
+const statusMessages: Record<number, Extract<CaptureUploadResult, { kind: "error" }>> = {
+  401: { kind: "error", message: "Please sign in again to keep capturing ideas.", recovery: "sign_in" },
+  413: { kind: "error", message: "That recording is too large. Try a shorter thought.", recovery: "record_again" },
+  429: { kind: "error", message: "Too many captures. Please wait an hour before trying again.", recovery: "wait" },
+  502: { kind: "error", message: "Spark couldn't finish this one. Please try again.", recovery: "retry" },
+  503: { kind: "error", message: "Spark is temporarily unavailable. Please try again later.", recovery: "retry" },
 };
+
+function retryError(message: string): Extract<CaptureUploadResult, { kind: "error" }> {
+  return { kind: "error", message, recovery: "retry" };
+}
 
 function parseResult(value: unknown): CaptureUploadResult | null {
   if (!isRecord(value)) return null;
@@ -51,18 +55,17 @@ export async function uploadCapture(audio: Blob, signal?: AbortSignal): Promise<
     response = await fetch("/api/capture", { method: "POST", body: form, signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    return { kind: "error", message: "Could not reach Spark. Check your connection and try again.", retryable: true };
+    return retryError("Could not reach Spark. Check your connection and try again.");
   }
 
   if (!response.ok) {
-    const mapped = statusMessages[response.status] ?? { message: "Spark couldn't finish this one. Please try again.", retryable: true };
-    return { kind: "error", ...mapped };
+    return statusMessages[response.status] ?? retryError("Spark couldn't finish this one. Please try again.");
   }
 
   const text = await readBoundedText(response, MAX_RESPONSE_BYTES);
-  if (text === null) return { kind: "error", message: "Spark sent an unexpected response. Please try again.", retryable: true };
+  if (text === null) return retryError("Spark sent an unexpected response. Please try again.");
   let parsed: unknown;
-  try { parsed = JSON.parse(text); } catch { return { kind: "error", message: "Spark sent an unexpected response. Please try again.", retryable: true }; }
+  try { parsed = JSON.parse(text); } catch { return retryError("Spark sent an unexpected response. Please try again."); }
   const result = parseResult(parsed);
-  return result ?? { kind: "error", message: "Spark sent an unexpected response. Please try again.", retryable: true };
+  return result ?? retryError("Spark sent an unexpected response. Please try again.");
 }

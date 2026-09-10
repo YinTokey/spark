@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createIdea } from "./library-client";
-import type { Idea, Script } from "@/lib/spark-data";
+import { scriptParagraphs, type Idea, type Script } from "@/lib/spark-data";
 import { Icon } from "./icon";
 import { Teleprompter } from "./teleprompter";
 
@@ -108,7 +108,7 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, libraryE
                 {scripts.filter(script => script.ideaIds.includes(screen.idea.id)).map(script => <button className="linked-script" key={script.id} onClick={() => setScreen({ kind: "script", script })}><Icon name="script" size={23} /><span><small>PART OF A SCRIPT</small>{script.title}</span><Icon name="arrow" size={19} /></button>)}
               </> : <>
                 <h1 className="detail-title" ref={heading} tabIndex={-1}>{screen.script.title}</h1>
-                <section className="script-section"><h2>Script <span>Made from your thoughts</span></h2><div className="script-card"><div><h3><span className="section-dot" />Hook</h3><p>{screen.script.hook}</p></div><div><h3><span className="section-dot" />Key points</h3><ol>{screen.script.points.map(point => <li key={point}>{point}</li>)}</ol></div><div><h3><span className="section-dot" />Outro</h3><p>{screen.script.outro}</p></div></div></section>
+                <section className="script-section"><h2>Script <span>Made from your thoughts</span></h2><div className="script-card">{scriptParagraphs(screen.script.text).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div></section>
                 <div className="record-action"><button className="primary-button" onClick={() => { if (screen.kind === "script") setScreen({ kind: "record", script: screen.script }); }}><Icon name="video" size={21} />Record with Teleprompter</button><span>Find your flow. One take at a time.</span></div>
               </>}
             </>}

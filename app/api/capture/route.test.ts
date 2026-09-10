@@ -23,9 +23,8 @@ function boundary() {
     const path = String(url);
     assert.equal(new Headers(init?.headers).get('Authorization'), path.includes('openai.com') ? 'Bearer fake-unit-test-only' : 'Bearer test-token');
     if (path.endsWith('/auth/v1/user')) return Response.json({ id });
-    if (path.endsWith('/rpc/consume_ai_request')) return Response.json(true);
     if (path.endsWith('/audio/transcriptions')) return Response.json({ text: 'A captured idea' });
-    if (path.endsWith('/rest/v1/ideas')) return Response.json([{ id, transcript: 'A captured idea', created_at: '2026-09-08T12:00:00Z' }]);
+    if (path.endsWith('/rest/v1/ideas')) return Response.json([{ id, text: 'A captured idea', created_at: '2026-09-08T12:00:00Z' }]);
     throw new Error(`Unexpected external boundary: ${path}`);
   });
 }
@@ -98,8 +97,8 @@ test('valid audio authenticates, rate-limits, transcribes and persists exactly o
   assert.equal(result.kind, 'idea');
   assert.equal(result.idea.note, 'A captured idea');
   assert.equal(result.idea.id, id);
-  assert.deepEqual(external.mock.calls.map((call) => new URL(String(call.arguments[0])).pathname), ['/auth/v1/user', '/rest/v1/rpc/consume_ai_request', '/v1/audio/transcriptions', '/rest/v1/ideas']);
-  assert.deepEqual(JSON.parse(String(external.mock.calls[3].arguments[1]?.body)), { transcript: 'A captured idea' });
+  assert.deepEqual(external.mock.calls.map((call) => new URL(String(call.arguments[0])).pathname), ['/auth/v1/user', '/v1/audio/transcriptions', '/rest/v1/ideas']);
+  assert.deepEqual(JSON.parse(String(external.mock.calls[2].arguments[1]?.body)), { text: 'A captured idea' });
 });
 
 test('maximum supported audio size is accepted', async () => {
@@ -107,7 +106,7 @@ test('maximum supported audio size is accepted', async () => {
   const form = new FormData();
   form.set('audio', new File([new Uint8Array(8_388_608)], 'idea.webm', { type: 'audio/webm' }));
   assert.equal((await POST(request(form))).status, 200);
-  assert.equal(external.mock.callCount(), 4);
+  assert.equal(external.mock.callCount(), 3);
 });
 
 test('preserves the case-sensitive WebKit multipart boundary from the original header', async () => {
@@ -120,7 +119,7 @@ test('preserves the case-sensitive WebKit multipart boundary from the original h
   const response = await POST(incoming);
   assert.equal(response.status, 200);
   assert.equal((await response.json()).kind, 'idea');
-  assert.equal(external.mock.callCount(), 4);
+  assert.equal(external.mock.callCount(), 3);
 });
 
 test('supported browser codec parameters are accepted and unsupported media bases are rejected', async () => {
@@ -130,24 +129,23 @@ test('supported browser codec parameters are accepted and unsupported media base
     form.set('audio', new File(['x'], 'idea.webm', { type }));
     assert.equal((await POST(request(form))).status, status);
   }
-  assert.equal(external.mock.callCount(), 5);
+  assert.equal(external.mock.callCount(), 4);
 });
 
-for (const failure of ['rate_denied', 'rate_failed', 'transcription', 'insert'] as const) {
+for (const failure of ['transcription', 'insert'] as const) {
   test(`${failure} returns a safe error with no automatic retries`, async () => {
     const calls: string[] = [];
     mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
       const path = new URL(String(url)).pathname;
       calls.push(path);
       if (path === '/auth/v1/user') return Response.json({ id });
-      if (path.endsWith('consume_ai_request')) return failure === 'rate_failed' ? new Response('secret', { status: 500 }) : Response.json(failure !== 'rate_denied');
       if (path.endsWith('transcriptions') && failure !== 'transcription') return Response.json({ text: 'A captured idea' });
       return new Response('secret', { status: 500 });
     });
     const response = await POST(request());
-    assert.equal(response.status, failure === 'rate_denied' ? 429 : failure === 'rate_failed' ? 503 : 502);
+    assert.equal(response.status, 502);
     assert.equal(new Set(calls).size, calls.length);
-    assert.equal(calls.length, failure.startsWith('rate') ? 2 : failure === 'transcription' ? 3 : 4);
+    assert.equal(calls.length, failure === 'transcription' ? 2 : 3);
     const result = await response.json();
     assert.equal(typeof result.code, 'string');
     assert.equal(typeof result.error, 'string');

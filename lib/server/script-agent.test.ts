@@ -5,8 +5,8 @@ import { generateScript, ScriptAgentError, type RunScriptAgent } from './script-
 const RECENT_ID = '22222222-2222-4222-8222-222222222222';
 const OTHER_ID = '33333333-3333-4333-8333-333333333333';
 const now = new Date('2026-09-08T05:00:00.000Z');
-const recent = { id: RECENT_ID, transcript: 'Walking helps me think.', created_at: '2026-09-08T04:30:00.000Z' };
-const output = { title: 'Walking', hook: 'Step outside.', body: 'A walk creates room to think.', outro: 'Take a walk today.', ideaIds: [RECENT_ID] };
+const recent = { id: RECENT_ID, text: 'Walking helps me think.', created_at: '2026-09-08T04:30:00.000Z' };
+const output = { text: 'Walking\n\nStep outside. A walk creates room to think.\n\nTake a walk today.', ideaIds: [RECENT_ID] };
 const repository = { findRecentIdeas: async () => [recent] };
 const inputs = { command: 'Create a script about walking', hint: 'walking', repository, now };
 const validRunner: RunScriptAgent = async ({ retrieveRecentIdeas }) => {
@@ -84,17 +84,17 @@ test('provenance cannot reference a row excluded from tool output', async () => 
 });
 
 test('rejects malformed or oversized repository output', async () => {
-  for (const rows of [Array.from({ length: 21 }, () => recent), [{ ...recent, transcript: 'x'.repeat(10_001) }], [{ ...recent, created_at: 'invalid' }]]) {
+  for (const rows of [Array.from({ length: 21 }, () => recent), [{ ...recent, text: 'x'.repeat(10_001) }], [{ ...recent, created_at: 'invalid' }]]) {
     await assert.rejects(generateScript({ ...inputs, repository: { findRecentIdeas: async () => rows }, runAgent: validRunner }), /retrieval_failed/);
   }
 });
 
 test('tool truncates source excerpts to 2000 characters and rejects repeated retrieval', async () => {
   await generateScript({ ...inputs,
-    repository: { findRecentIdeas: async () => [{ ...recent, transcript: 'x'.repeat(10_000) }] },
+    repository: { findRecentIdeas: async () => [{ ...recent, text: 'x'.repeat(10_000) }] },
     runAgent: async ({ retrieveRecentIdeas }) => {
       const rows = await retrieveRecentIdeas({});
-      assert.equal(rows[0].transcript.length, 2000);
+      assert.equal(rows[0].text.length, 2000);
       return output;
     },
   });
@@ -119,22 +119,20 @@ test('validates command, hint, tool argument shape and tool topic limits', async
   } });
 });
 
-test('enforces structured output field bounds including exactly twelve source IDs', async () => {
-  for (const [field, limit] of [['title', 100], ['hook', 500], ['body', 6000], ['outro', 500]] as const) {
-    for (const text of ['', ' ', 'x'.repeat(limit + 1)]) {
-      await assert.rejects(generateScript({ ...inputs, runAgent: async (context) => {
-        await validRunner(context); return { ...output, [field]: text };
-      } }), /invalid_output/);
-    }
-    const result = await generateScript({ ...inputs, runAgent: async (context) => {
-      await validRunner(context); return { ...output, [field]: 'x'.repeat(limit) };
-    } });
-    assert.equal(result?.[field].length, limit);
-    const normalized = await generateScript({ ...inputs, runAgent: async (context) => {
-      await validRunner(context); return { ...output, [field]: ` ${'x'.repeat(limit)} ` };
-    } });
-    assert.equal(normalized?.[field].length, limit);
+test('enforces the full-text bound and exactly twelve source IDs', async () => {
+  for (const text of ['', ' ', 'x'.repeat(8_001)]) {
+    await assert.rejects(generateScript({ ...inputs, runAgent: async (context) => {
+      await validRunner(context); return { ...output, text };
+    } }), /invalid_output/);
   }
+  const result = await generateScript({ ...inputs, runAgent: async (context) => {
+    await validRunner(context); return { ...output, text: 'x'.repeat(8_000) };
+  } });
+  assert.equal(result?.text.length, 8_000);
+  const normalized = await generateScript({ ...inputs, runAgent: async (context) => {
+    await validRunner(context); return { ...output, text: ` ${'x'.repeat(8_000)} ` };
+  } });
+  assert.equal(normalized?.text.length, 8_000);
   await assert.rejects(generateScript({ ...inputs, runAgent: async (context) => {
     await validRunner(context); return { ...output, ideaIds: Array.from({ length: 13 }, () => RECENT_ID) };
   } }), /invalid_output/);
@@ -172,7 +170,7 @@ test('logs only safe outcome metadata and omits malformed correlation identifier
   await generateScript({ ...inputs, correlationId: 'private content\n', runAgent: validRunner });
   const logs = JSON.stringify(entries);
   assert.match(logs, /capture-123/);
-  for (const privateText of [inputs.command, recent.transcript, output.body, 'private content']) assert.ok(!logs.includes(privateText));
+  for (const privateText of [inputs.command, recent.text, output.text, 'private content']) assert.ok(!logs.includes(privateText));
 });
 
 test('default runner refuses missing server credentials', async () => {

@@ -5,7 +5,7 @@ import { uploadCapture } from "./capture-client.ts";
 const idea = { id: "idea-1", title: "A thought", note: "A full thought", date: "Today", time: "12:00", status: "Raw" as const };
 const script = {
   id: "script-1", title: "A script", status: "Ready to record" as const,
-  ideaIds: ["idea-1"], hook: "A hook", points: ["A point"], outro: "An outro",
+  ideaIds: ["idea-1"], text: "A script\n\nA complete spoken script.",
 };
 const audio = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" });
 
@@ -26,18 +26,20 @@ test("uploads a multipart audio file to the capture route without manual auth", 
 });
 
 test("maps HTTP failures to safe UI text without trusting the server body", async () => {
-  for (const [status, expected] of [
-    [401, "sign in"], [413, "too large"], [429, "wait an hour"], [502, "try again"], [503, "temporarily unavailable"],
+  for (const [status, expected, recovery] of [
+    [401, "sign in", "sign_in"], [413, "too large", "record_again"], [429, "wait an hour", "wait"],
+    [502, "try again", "retry"], [503, "temporarily unavailable", "retry"],
   ] as const) {
     mock.restoreAll();
     mock.method(globalThis, "fetch", async () => new Response('{"error":"secret"}', { status }));
     const result = await uploadCapture(audio);
     assert.equal(result.kind, "error");
     assert.match(result.message, new RegExp(expected, "i"));
+    assert.equal(result.recovery, recovery);
   }
 });
 
-test("malformed and oversized responses fail closed as retryable errors", async () => {
+test("malformed and oversized responses fail closed with retry recovery", async () => {
   mock.method(globalThis, "fetch", async () => new Response("{", { headers: { "content-length": "1" } }));
   const malformed = await uploadCapture(audio);
   assert.equal(malformed.kind, "error");
@@ -45,7 +47,7 @@ test("malformed and oversized responses fail closed as retryable errors", async 
   mock.method(globalThis, "fetch", async () => new Response("x".repeat(65_537)));
   const oversized = await uploadCapture(audio);
   assert.equal(oversized.kind, "error");
-  assert.equal(oversized.retryable, true);
+  assert.equal(oversized.recovery, "retry");
 });
 
 test("an aborted request rethrows instead of returning a failure", async () => {

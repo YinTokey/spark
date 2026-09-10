@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server.js';
 import { CaptureWorkflowError, processCapture } from '../../../lib/server/capture-workflow.ts';
 import { authorizeMutation, MutationError, mutationFailure, privateJson, readMutationBody } from '../../../lib/server/mutation-request.ts';
 import { parseMultipartFormData } from '../../../lib/server/multipart.ts';
+import { demoRateLimiter } from '../../../lib/server/rate-limit.ts';
 import { createSparkRepository } from '../../../lib/server/spark-repository.ts';
 import { validateAudio } from '../../../lib/server/transcription.ts';
 
@@ -31,9 +32,13 @@ async function readAudio(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = await authorizeMutation(request, MAX_BODY_BYTES);
+    const session = await authorizeMutation(request, MAX_BODY_BYTES);
     const file = await readAudio(request);
-    const result = await processCapture(file, { repository: createSparkRepository(token), signal: request.signal });
+    const result = await processCapture(file, {
+      repository: createSparkRepository(session.token),
+      consumeCaptureSlot: () => demoRateLimiter.consume(session.userId, 'ai_capture', 20),
+      signal: request.signal,
+    });
     return privateJson(result);
   } catch (error) {
     if (error instanceof CaptureWorkflowError) return privateJson({ code: error.code, error: error.message }, error.status);

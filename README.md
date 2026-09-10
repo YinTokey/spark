@@ -30,7 +30,7 @@ Email/password registration uses Supabase Auth’s built-in `auth.users` table. 
 
 Spark authenticates a Supabase access-token cookie, transcribes bounded voice recordings with OpenAI Whisper, stores ideas, and runs an OpenAI Agents SDK workflow to turn a natural “make me a script” command into a persisted YouTube script using the user’s recent ideas.
 
-Apply the schema migration `supabase/migrations/20260908000000_voice_capture.sql` through your normal Supabase workflow before using the database-backed library. It creates `ideas`, `scripts`, and `ai_rate_limits` tables with row-level security and a transaction-safe per-user AI request limit.
+Apply the schema migration in `supabase/migrations/` through your normal Supabase workflow before using the database-backed library. The demo rate limits run in application memory and reset whenever the server process restarts.
 
 Product limits: recordings are capped at 60 seconds and 8 MB, ideas reference only the preceding hour, and audio is transcribed transiently and never stored. Scripts record provenance as a bounded list of idea IDs.
 

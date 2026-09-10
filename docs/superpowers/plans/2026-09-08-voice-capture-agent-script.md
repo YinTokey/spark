@@ -4,7 +4,7 @@
 
 **Goal:** Replace Spark's simulated voice result and fixture phone library with authenticated Whisper transcription, durable ideas, tool-selected recent ideas, and agent-generated YouTube scripts.
 
-**Architecture:** A thin authenticated Next.js route accepts bounded audio and delegates to independently tested transcription, intent, repository, and Agents SDK modules. Supabase REST runs under the user's access token and RLS; the Server Component loads the initial library, while shared client state incorporates capture and manual-create responses without reloading.
+**Architecture:** A thin authenticated Next.js route accepts bounded audio and delegates to independently tested rate-limit, transcription, intent, repository, and Agents SDK modules. Supabase REST runs under the user's access token and RLS; the Server Component loads the initial library, while shared client state incorporates capture and manual-create responses without reloading. Rate limits are intentionally process-local because this is a single-instance demo.
 
 **Tech Stack:** Next.js 16.3.4 Route Handlers and Server Components, React 19.2.8, TypeScript, Supabase Auth/PostgREST/PostgreSQL migration, OpenAI whisper-1, OpenAI Agents SDK for TypeScript, Zod 4, Node test runner, Playwright.
 
@@ -35,7 +35,6 @@
 
 **Interfaces:**
 - Produces: \`IdeaRecord\`, \`ScriptRecord\`, \`Idea\`, \`Script\`, \`LibraryData\`, \`toIdea(record)\`, and \`toScript(record)\`.
-- Produces database RPC \`consume_ai_request()\` returning a boolean.
 - Later tasks consume the exact persisted fields defined here.
 
 - [ ] **Step 1: Extend the repository test command and add failing mapping tests**
@@ -52,7 +51,7 @@ Create \`lib/spark-data.test.ts\` with fixed UTC timestamps and assertions like:
 test("maps a database idea into phone presentation without duplicated stored fields", () => {
   const idea = toIdea({
     id: "11111111-1111-4111-8111-111111111111",
-    transcript: "Walking without headphones gives unfinished thoughts room to connect.",
+    text: "Walking without headphones gives unfinished thoughts room to connect.",
     created_at: "2026-09-08T04:42:00.000Z",
   }, new Date("2026-09-08T05:00:00.000Z"));
 
@@ -62,21 +61,16 @@ test("maps a database idea into phone presentation without duplicated stored fie
   assert.equal(idea.status, "Raw");
 });
 
-test("maps script body paragraphs for the detail view and teleprompter", () => {
+test("keeps full script text and derives its display title", () => {
   const script = toScript({
     id: "22222222-2222-4222-8222-222222222222",
-    title: "Why walking unlocks ideas",
-    hook: "Your best idea may be one walk away.",
-    body: "Leave the desk for ten minutes.\\n\\nLet the unfinished thought move with you.",
-    outro: "Take the walk and keep the thought.",
+    text: "Why walking unlocks ideas\\n\\nYour best idea may be one walk away.",
     idea_ids: ["11111111-1111-4111-8111-111111111111"],
     created_at: "2026-09-08T04:55:00.000Z",
   });
 
-  assert.deepEqual(script.points, [
-    "Leave the desk for ten minutes.",
-    "Let the unfinished thought move with you.",
-  ]);
+  assert.equal(script.title, "Why walking unlocks ideas");
+  assert.match(script.text, /Your best idea may be one walk away/);
 });
 \`\`\`
 
@@ -93,16 +87,13 @@ In \`lib/spark-data.ts\`, define:
 \`\`\`ts
 export type IdeaRecord = {
   id: string;
-  transcript: string;
+  text: string;
   created_at: string;
 };
 
 export type ScriptRecord = {
   id: string;
-  title: string;
-  hook: string;
-  body: string;
-  outro: string;
+  text: string;
   idea_ids: string[];
   created_at: string;
 };
@@ -110,23 +101,18 @@ export type ScriptRecord = {
 export type LibraryData = { ideas: Idea[]; scripts: Script[] };
 \`\`\`
 
-Implement pure mapping with constants \`MAX_TITLE_LENGTH = 56\` and \`MAX_SCRIPT_PARAGRAPHS = 24\`. Derive idea title from the first non-empty transcript line, truncate with an ellipsis, derive Today/Yesterday/date and localized time from \`created_at\`, and split script body on blank lines. Delete \`sampleIdeas\` and \`sampleScripts\`; do not retain production fixture fallbacks.
+Implement pure mapping with \`MAX_TITLE_LENGTH = 56\`. Derive idea and script titles from their first non-empty lines, truncate with an ellipsis, derive Today/Yesterday/date and localized time from \`created_at\`, and keep the full script text unchanged. Delete \`sampleIdeas\` and \`sampleScripts\`; do not retain production fixture fallbacks.
 
 - [ ] **Step 4: Add the migration**
 
 Create SQL that:
 
 - enables \`pgcrypto\`;
-- creates \`ideas\`, \`scripts\`, and private \`ai_rate_limits\`;
+- creates \`ideas\` and \`scripts\`;
 - uses \`auth.uid()\` ownership policies for select/insert on product tables;
-- checks transcript/title/hook/body/outro lengths and limits \`idea_ids\` to 1–12;
+- requires every script provenance ID to reference an idea owned by the current user;
+- checks idea text and full script text lengths and limits \`idea_ids\` to 1–12;
 - indexes \`(user_id, created_at desc)\`;
-- creates a transaction-safe \`security definer\` function \`consume_ai_request()\` with a fixed 20-captures-per-hour limit;
-- sets the function \`search_path\` explicitly;
-- revokes direct access to \`ai_rate_limits\`;
-- grants execute on only \`consume_ai_request()\` to \`authenticated\`.
-
-The rate function must obtain \`auth.uid()\` internally, reject null users, atomically insert/increment the current UTC hour bucket, and return false once count exceeds 20. It takes no caller-controlled limit or user ID.
 
 - [ ] **Step 5: Install the approved production dependencies**
 
@@ -140,7 +126,7 @@ Run: \`node --test lib/spark-data.test.ts\`
 
 Expected: PASS.
 
-Run: \`git diff --check && rg -n "enable row level security|auth.uid|consume_ai_request|revoke|grant execute" supabase/migrations/20260908000000_voice_capture.sql\`
+Run: \`git diff --check && rg -n "enable row level security|auth.uid|idea_ids" supabase/migrations/20260908000000_voice_capture.sql\`
 
 Expected: no whitespace errors and all security clauses present. Do not execute the migration against the configured database.
 
@@ -165,7 +151,7 @@ git commit -m "feat: add persistent ideas and scripts schema"
 
 **Interfaces:**
 - Produces: \`authenticateAccessToken(token): Promise<AuthenticatedUser | null>\`.
-- Produces: \`createSparkRepository(token)\` with \`loadLibrary()\`, \`insertIdea(transcript)\`, \`findRecentIdeas(since, hint)\`, \`insertScript(input)\`, and \`consumeAiRequest()\`.
+- Produces: \`createSparkRepository(token)\` with \`loadLibrary()\`, \`insertIdea(text)\`, \`findRecentIdeas(since, hint)\`, and \`insertScript(input)\`.
 - Consumes record mappers from Task 1.
 
 - [ ] **Step 1: Write failing repository behavior tests**
@@ -190,7 +176,7 @@ test("rejects an oversized or malformed PostgREST response", async () => {
 
 test("script provenance must be a non-empty bounded UUID list", async () => {
   await assert.rejects(
-    repository.insertScript({ title: "x", hook: "x", body: "x", outro: "x", ideaIds: [] }),
+    repository.insertScript({ text: "Title", ideaIds: [] }),
     /invalid_script/,
   );
 });
@@ -229,7 +215,7 @@ Use fixed URLs derived only from validated \`getSupabaseConfig().url\`. Every ca
 
 Runtime-validate all returned rows with Zod. Fetch at most 50 library rows per table and 20 recent candidates. For \`findRecentIdeas\`, fetch only rows newer than the supplied server cutoff, then score locally using normalized non-stopword tokens from the bounded hint; return at most 12. An empty hint returns newest candidates, while a non-empty hint never silently falls back to unrelated ideas.
 
-Use \`Prefer: return=representation\` for inserts and accept exactly one returned row. Call \`/rest/v1/rpc/consume_ai_request\` with an empty JSON object and validate the boolean result.
+Use \`Prefer: return=representation\` for inserts and accept exactly one returned row. Rate limiting is handled by the server route rather than the persistence repository.
 
 - [ ] **Step 5: Make the Server Component load the library directly**
 
@@ -384,7 +370,7 @@ git commit -m "feat: transcribe bounded voice captures"
 
 **Interfaces:**
 - Produces \`generateScript({ command, hint, repository, correlationId }): Promise<GeneratedScript | null>\`.
-- \`GeneratedScript\` is \`{ title; hook; body; outro; ideaIds }\`.
+- \`GeneratedScript\` is \`{ text; ideaIds }\`.
 - Consumes \`repository.findRecentIdeas(cutoff, hint)\`; the tool owns the cutoff and selection bounds.
 
 - [ ] **Step 1: Write failing agent-policy tests around an injectable runner**
@@ -438,10 +424,7 @@ const toolInput = z.object({
 });
 
 const scriptOutput = z.object({
-  title: z.string().trim().min(1).max(100),
-  hook: z.string().trim().min(1).max(500),
-  body: z.string().trim().min(1).max(6_000),
-  outro: z.string().trim().min(1).max(500),
+  text: z.string().trim().min(1).max(8_000),
   ideaIds: z.array(z.string().uuid()).min(1).max(12),
 });
 \`\`\`
@@ -512,10 +495,10 @@ Expected: FAIL because \`processCapture\` does not exist.
 
 - [ ] **Step 3: Implement the orchestration service**
 
-Make \`processCapture\` consume the durable rate slot before the first paid call, create one correlation UUID, and follow this exact order:
+Make \`processCapture\` consume the in-memory rate slot before the first paid call, create one correlation UUID, and follow this exact order:
 
 \`\`\`ts
-consumeAiRequest
+consumeCaptureSlot
   -> transcribeAudio
   -> parseScriptCommand
   -> insertIdea
@@ -544,7 +527,7 @@ const request = new NextRequest("http://localhost/api/capture", {
 
 Export \`runtime = "nodejs"\`. Check origin against \`request.nextUrl.origin\`; require the HttpOnly cookie; authenticate it; check \`content-length\` against 8.5 MB before parsing; accept exactly one \`audio\` File; and call the workflow. Use \`Cache-Control: private, no-store\`.
 
-The ideas route accepts exactly \`{ transcript: string }\`, trims it, enforces 1–8,000 characters and a 64 KB JSON body limit, then inserts through the repository. Do not accept user IDs or timestamps.
+The ideas route accepts exactly \`{ text: string }\`, trims it, enforces 1–8,000 characters and a 64 KB JSON body limit, then inserts through the repository. Do not accept user IDs or timestamps.
 
 - [ ] **Step 6: Run all server route tests**
 
@@ -651,11 +634,11 @@ git commit -m "feat: submit voice captures and show results"
 **Interfaces:**
 - \`Capture({ initialLibrary, libraryError })\` owns \`ideas\` and \`scripts\`.
 - \`SparkPrototype({ ideas, scripts, onIdeaCreated, libraryError })\` is presentation plus manual-create state.
-- \`createIdea(transcript, signal): Promise<Idea>\` calls Task 6.
+- \`createIdea(text, signal): Promise<Idea>\` calls Task 6.
 
 - [ ] **Step 1: Write failing manual-create client tests**
 
-Cover valid create, whitespace, 8,000-character bound, malformed server response, 401/429/502, and abort. Assert the request body contains only \`transcript\`.
+Cover valid create, whitespace, 8,000-character bound, malformed server response, 401/429/502, and abort. Assert the request body contains only \`text\`.
 
 - [ ] **Step 2: Run tests and observe failure**
 
@@ -677,9 +660,9 @@ Remove every \`sampleIdeas\` and \`sampleScripts\` reference. Render the passed 
 
 Persist the manual form through \`createIdea\`. Disable its submit while saving, keep user input after a failure, show a role=alert retryable error, abort on unmount, and retain focus after success/cancel.
 
-- [ ] **Step 5: Adapt details and teleprompter to persisted script body**
+- [ ] **Step 5: Adapt details and teleprompter to persisted script text**
 
-Render the mapped \`script.points\` derived in Task 1. Resolve linked source ideas from the current ideas array; if an older source is outside the 50-row library window, show the linked-script count without inventing a title. Keep camera fallback and timer behavior unchanged.
+Render the paragraphs after the first title line from \`script.text\`. Resolve linked source ideas from the current ideas array; if an older source is outside the 50-row library window, show the linked-script count without inventing a title. Keep camera fallback and timer behavior unchanged.
 
 - [ ] **Step 6: Run focused client tests**
 

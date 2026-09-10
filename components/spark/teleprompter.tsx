@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Script } from "@/lib/spark-data";
+import { scriptParagraphs, type Script } from "@/lib/spark-data";
 import { Icon } from "./icon";
 
 export function Teleprompter({ script, onClose }: { script: Script; onClose: () => void }) {
@@ -63,9 +63,7 @@ export function Teleprompter({ script, onClose }: { script: Script; onClose: () 
       </div>
       <div className="prompt-overlay">
         <div className="prompt-window" ref={prompt} tabIndex={0} aria-label="Script to read">
-          <p className="prompt-hook">{script.hook}</p>
-          {script.points.map(point => <p key={point}>{point}</p>)}
-          <p>{script.outro}</p>
+          {scriptParagraphs(script.text).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
           <p className="prompt-end">You’ve got this.</p>
         </div>
       </div>

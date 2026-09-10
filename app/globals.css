@@ -339,12 +339,8 @@ h1, h2, h3, p { margin: 0; }
 .script-section { margin-top: 24px; }
 .script-section h2 { margin-bottom: 10px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a8f87; }
 .script-section h2 span { text-transform: none; letter-spacing: 0; color: #b5b9b1; font-size: 11px; }
-.script-card { display: grid; gap: 16px; }
-.script-card h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 650; }
-.section-dot { width: 7px; height: 7px; border-radius: 50%; background: #485542; flex-shrink: 0; }
+.script-card { display: grid; gap: 12px; }
 .script-card p { font-size: 14.5px; line-height: 1.5; color: #3a4038; }
-.script-card ol { margin: 0; padding-left: 18px; font-size: 14.5px; line-height: 1.5; color: #3a4038; }
-.script-card li + li { margin-top: 6px; }
 .record-action { margin-top: 26px; text-align: center; }
 .record-action .primary-button { width: 100%; }
 .record-action > span { display: block; margin-top: 10px; font-size: 12px; color: #8a8f87; }
@@ -373,7 +369,6 @@ h1, h2, h3, p { margin: 0; }
 .prompt-window { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 21px; line-height: 1.5; color: #f2f2ec; scrollbar-width: none; }
 .prompt-window::-webkit-scrollbar { display: none; }
 .prompt-window p { margin-bottom: 18px; }
-.prompt-hook { font-size: 24px; font-weight: 600; }
 .prompt-end { color: #c9cec6; font-size: 16px; }
 .camera-fallback { position: relative; z-index: 1; margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(8, 10, 8, 0.6); font-size: 12px; color: #d8dcd4; }
 .record-bottom { position: relative; z-index: 2; margin-top: auto; padding: 16px 0 8px; background: linear-gradient(transparent, rgba(8, 10, 8, 0.72) 55%); }

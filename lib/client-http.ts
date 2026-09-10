@@ -24,13 +24,11 @@ export function parseIdea(value: unknown): Idea | null {
 
 export function parseScript(value: unknown): Script | null {
   if (!isRecord(value)) return null;
-  if (typeof value.id !== "string" || typeof value.title !== "string" || typeof value.hook !== "string" ||
-      typeof value.outro !== "string" ||
+  if (typeof value.id !== "string" || typeof value.title !== "string" || typeof value.text !== "string" ||
       (value.status !== "Ready to record" && value.status !== "Draft" && value.status !== "Editing")) return null;
   const ideaIds = stringArray(value.ideaIds);
-  const points = stringArray(value.points);
-  if (!ideaIds || !points) return null;
-  return { id: value.id, title: value.title, status: value.status, ideaIds, hook: value.hook, points, outro: value.outro };
+  if (!ideaIds) return null;
+  return { id: value.id, title: value.title, status: value.status, ideaIds, text: value.text };
 }
 
 export async function readBoundedText(response: Response, maxBytes: number): Promise<string | null> {

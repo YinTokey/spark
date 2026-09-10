@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Necklace } from "./necklace";
 import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
 import type { CaptureUploadResult } from "./capture-client";
 import SparkPrototype from "./spark/spark-prototype";
 import { useRecorder } from "./use-recorder";
-import type { Idea, LibraryData, Script } from "@/lib/spark-data";
+import { scriptParagraphs, type Idea, type LibraryData, type Script } from "@/lib/spark-data";
 
 function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
@@ -19,11 +20,19 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
   const busy = phase === "requesting" || phase === "processing";
   const isRecording = phase === "recording";
   const elapsed = `00:${String(recording.seconds).padStart(2, "0")}`;
+  const failure = result?.kind === "error" ? result : null;
 
   function press() {
     setPlaybackError(false);
     if (isRecording) recording.stop();
     else void recording.start();
+  }
+
+  function recoveryControl() {
+    if (!failure || failure.recovery === "retry") return <button className="text-button" onClick={recording.retryUpload}>Try again</button>;
+    if (failure.recovery === "record_again") return <button className="text-button" onClick={() => void recording.start()}>Record again</button>;
+    if (failure.recovery === "sign_in") return <Link className="text-button" href="/">Sign in again</Link>;
+    return <button className="text-button" onClick={recording.reset}>Back</button>;
   }
 
   return (
@@ -49,7 +58,7 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
             <div aria-live="polite"><p className="state-label">{phase === "requesting" ? "ONE LITTLE PERMISSION" : phase === "error" ? "LET’S TRY THAT AGAIN" : "A THOUGHT WORTH KEEPING"}</p>
               <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? "Check your microphone." : "Ready when you are."}</h2></div>
             {phase === "error" ? <p className="error-message" role="alert">{recording.error}</p> : <p className="panel-copy">{phase === "requesting" ? "Allow microphone access in your browser to start capturing." : <>An idea just hit you?<br />Press the side button and start talking.</>}</p>}
-            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : <button className="text-button" onClick={phase === "error" ? recording.retryUpload : () => void recording.start()}>{phase === "error" ? "Try again" : "Or try it here"} <span aria-hidden="true">↗</span></button>}
+            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : phase === "error" ? recoveryControl() : <button className="text-button" onClick={() => void recording.start()}>Or try it here <span aria-hidden="true">↗</span></button>}
           </div>}
 
           {isRecording && <div className="recording-content">
@@ -71,7 +80,7 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
             </> : result.kind === "script" ? <>
               <div className="result-heading"><span className="checkmark">✓</span><h2>Your script, ready.</h2><span>{elapsed}</span></div>
               <h3>{result.script.title}</h3>
-              <p className="result-copy">{result.script.hook}</p>
+              <p className="result-copy">{scriptParagraphs(result.script.text)[0] ?? result.script.title}</p>
               <button className="primary-button" onClick={() => onViewScript(result.script.id)}><span aria-hidden="true">↗</span> View it in Phone → Scripts</button>
             </> : <>
               <div className="result-heading"><span className="checkmark">✓</span><h2>Almost there.</h2><span>{elapsed}</span></div>

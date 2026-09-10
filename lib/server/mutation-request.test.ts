@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 import { NextRequest } from 'next/server.js';
-import { MutationError, readMutationBody } from './mutation-request.ts';
+import { authorizeMutation, MutationError, readMutationBody } from './mutation-request.ts';
+
+test('authorization returns the verified user ID with the cookie token', async () => {
+  process.env.SUPABASE_URL = 'https://project.supabase.co';
+  process.env.SUPABASE_PUBLISHABLE_KEY = 'test-publishable';
+  const external = mock.method(globalThis, 'fetch', async () => Response.json({ id: 'user-1' }));
+  const request = new NextRequest('http://localhost/api/ideas', {
+    method: 'POST',
+    headers: { origin: 'http://localhost', cookie: 'spark-access-token=test-token' },
+  });
+
+  try {
+    assert.deepEqual(await authorizeMutation(request, 1024), { token: 'test-token', userId: 'user-1' });
+    assert.equal(external.mock.callCount(), 1);
+  } finally {
+    mock.restoreAll();
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
+  }
+});
 
 function streamingRequest(body: ReadableStream<Uint8Array>, signal?: AbortSignal) {
   const init = { method: 'POST', body, signal, duplex: 'half' as const };
