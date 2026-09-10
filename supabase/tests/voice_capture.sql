@@ -3,12 +3,14 @@
 -- All fixtures are rolled back. Never run against production.
 begin;
 
+-- Fake, hardcoded test identities (not real users, not secrets).
+-- These UUIDs are deliberately all-zero-prefixed so they are obviously synthetic.
 insert into auth.users (id) values
-  ('b84098f3-38b5-43e5-81b9-f4fabfc747ba'),
-  ('80bf11c2-fbaf-4eaf-b1ed-87e2c2eb6c28');
+  ('00000000-0000-4000-8000-000000000001'),  -- fake user A (idea/script owner)
+  ('00000000-0000-4000-8000-000000000002');  -- fake user B (no access)
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub', 'b84098f3-38b5-43e5-81b9-f4fabfc747ba', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000001', true);
 
 do $$
 declare
@@ -22,14 +24,14 @@ begin
     values (E'Local title\n\nComplete script.', array[idea_id]) returning user_id into owner_id;
   if owner_id <> auth.uid() then raise exception 'Script ownership default failed'; end if;
   begin
-    insert into public.ideas (user_id, text) values ('80bf11c2-fbaf-4eaf-b1ed-87e2c2eb6c28', 'Invalid owner');
+    insert into public.ideas (user_id, text) values ('00000000-0000-4000-8000-000000000002', 'Invalid owner');
     raise exception 'Idea ownership policy allowed another user';
   exception when insufficient_privilege then null;
   end;
 end;
 $$;
 
-select set_config('request.jwt.claim.sub', '80bf11c2-fbaf-4eaf-b1ed-87e2c2eb6c28', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
 do $$
 begin
   if exists (select 1 from public.ideas) or exists (select 1 from public.scripts) then raise exception 'Another user can read owned content'; end if;
