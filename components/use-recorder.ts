@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
-import { uploadCapture, type CaptureUploadResult } from "./capture-client";
+import { uploadCapture, uploadTranscript, type CaptureUploadResult } from "./capture-client";
 import { initialPhase, reducePhase } from "./capture-machine";
+import { useLiveTranscript } from './use-live-transcript';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_SECONDS = 60;
@@ -14,11 +15,14 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
   const [levels, setLevels] = useState<number[]>(Array(32).fill(4));
   const [audioUrl, setAudioUrl] = useState("");
   const [result, setResult] = useState<CaptureUploadResult | null>(null);
+  const live = useLiveTranscript();
+  const resetLive = live.reset;
 
   const session = useRef(0);
   const release = useRef<() => void>(() => {});
   const stopRecording = useRef<() => void>(() => {});
   const blob = useRef<Blob | null>(null);
+  const completedTranscript = useRef<string | null>(null);
   const abortUpload = useRef<AbortController | null>(null);
   const onCreated = useRef(options.onCreated);
   useEffect(() => { onCreated.current = options.onCreated; });
@@ -27,7 +31,8 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
     session.current += 1;
     abortUpload.current?.abort();
     release.current();
-  }, []);
+    resetLive();
+  }, [resetLive]);
 
   function reset() {
     session.current += 1;
@@ -37,18 +42,21 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
     release.current = () => {};
     stopRecording.current = () => {};
     blob.current = null;
+    completedTranscript.current = null;
     setAudioUrl("");
     setSeconds(0);
     setError("");
     setResult(null);
+    resetLive();
     dispatch({ type: "RESET" });
   }
 
-  function upload(blobData: Blob) {
+  function upload(blobData: Blob, transcript?: string | null) {
+    completedTranscript.current = transcript || null;
     const controller = new AbortController();
     abortUpload.current = controller;
     const id = session.current;
-    uploadCapture(blobData, controller.signal)
+    (transcript ? uploadTranscript(transcript, controller.signal) : uploadCapture(blobData, controller.signal))
       .then(captureResult => {
         if (session.current !== id) return;
         setResult(captureResult);
@@ -72,7 +80,7 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
     if (phase !== "error") return;
     if (blob.current) {
       dispatch({ type: "RETRY" });
-      upload(blob.current);
+      upload(blob.current, completedTranscript.current);
     } else {
       void start();
     }
@@ -119,6 +127,7 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
       if (!current()) return;
       session.current += 1;
       release.current();
+      resetLive();
       setError(message);
       dispatch({ type: "FAILED" });
     }
@@ -144,16 +153,18 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
       stream.getTracks().forEach(track => {
         track.onended = () => fail("Your microphone disconnected. Reconnect it and try again.");
       });
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         if (!current()) return;
         const blobData = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
         clearMedia();
         chunks = [];
         if (!blobData.size) { fail("No audio was captured. Try recording again."); return; }
+        const finalTranscript = await live.stop();
+        if (!current()) return;
         blob.current = blobData;
         url = URL.createObjectURL(blobData);
         setAudioUrl(url);
-        upload(blobData);
+        upload(blobData, finalTranscript);
       };
       const startedAt = Date.now();
       stopRecording.current = () => {
@@ -166,6 +177,7 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
       };
       recorder.start(250);
       dispatch({ type: "RECORDING" });
+      void live.start(stream);
       ticker = setInterval(() => {
         if (!current()) return;
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
@@ -181,5 +193,5 @@ export function useRecorder(options: { onCreated?: (result: CaptureUploadResult)
     }
   }
 
-  return { phase, error, seconds, levels, audioUrl, result, start, stop: () => stopRecording.current(), reset, retryUpload };
+  return { phase, error, seconds, levels, audioUrl, result, transcript: live.transcript, liveTranscriptStatus: live.status, start, stop: () => stopRecording.current(), reset, retryUpload };
 }

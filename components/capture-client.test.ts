@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
-import { uploadCapture } from "./capture-client.ts";
+import { uploadCapture, uploadTranscript } from "./capture-client.ts";
 
 const idea = { id: "idea-1", title: "A thought", note: "A full thought", date: "Today", time: "12:00", status: "Raw" as const };
 const script = {
@@ -23,6 +23,16 @@ test("uploads a multipart audio file to the capture route without manual auth", 
   assert.ok(file instanceof File);
   assert.equal(file.type, "audio/webm");
   assert.equal(new Headers(init?.headers).get("Authorization"), null);
+});
+
+test("uploads a bounded final transcript to the dedicated capture route", async () => {
+  const fetchMock = mock.method(globalThis, "fetch", async () => Response.json({ kind: "idea", idea }));
+  const result = await uploadTranscript('A live idea');
+  assert.equal(result.kind, 'idea');
+  const [url, init] = fetchMock.mock.calls[0].arguments as [string, RequestInit];
+  assert.equal(url, '/api/capture/transcript');
+  assert.equal(new Headers(init.headers).get('Content-Type'), 'application/json');
+  assert.deepEqual(JSON.parse(String(init.body)), { transcript: 'A live idea' });
 });
 
 test("maps HTTP failures to safe UI text without trusting the server body", async () => {

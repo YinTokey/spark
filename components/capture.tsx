@@ -57,7 +57,7 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
           {(phase === "ready" || phase === "requesting" || phase === "error") && <div className="ready-content">
             <div className={`orb ${phase === "requesting" ? "waiting" : ""}`}><SoundMark /></div>
             <div aria-live="polite"><p className="state-label">{phase === "requesting" ? "ONE LITTLE PERMISSION" : phase === "error" ? "LET’S TRY THAT AGAIN" : "A THOUGHT WORTH KEEPING"}</p>
-              <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? "Check your microphone." : "Ready when you are."}</h2></div>
+              <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? failure ? "Couldn't transcribe that." : "Check your microphone." : "Ready when you are."}</h2></div>
             {phase === "error" ? <p className="error-message" role="alert">{recording.error}</p> : <p className="panel-copy">{phase === "requesting" ? "Allow microphone access in your browser to start capturing." : <>An idea just hit you?<br />Press the side button and start talking.</>}</p>}
             {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : phase === "error" ? recoveryControl() : <button className="text-button" onClick={() => void recording.start()}>Or try it here <span aria-hidden="true">↗</span></button>}
           </div>}
@@ -65,6 +65,11 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
           {isRecording && <div className="recording-content">
             <p className="state-label">LET IT ALL OUT</p><h2>Listening to you.</h2><p className="panel-copy">No perfect words needed.<br />Just follow your thought.</p>
             <div className="waveform" aria-hidden="true">{recording.levels.map((height, i) => <i key={i} style={{ height }} />)}</div>
+            <div className="live-transcript" role="status" aria-label="Live transcript" aria-live="polite">
+              {recording.transcript || (recording.liveTranscriptStatus === 'unavailable'
+                ? 'Live captions are unavailable; your recording will still be captured.'
+                : 'Listening for your words…')}
+            </div>
             <div className="recording-time"><span className="red-dot" /> Recording <time>{elapsed}</time></div>
             <button className="primary-button" onClick={recording.stop}><span className="stop-square" /> Finish my thought</button>
             <button className="text-button" onClick={recording.reset}>Cancel</button>

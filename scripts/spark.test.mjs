@@ -12,7 +12,7 @@ const SCRIPT = {
   created_at: '2026-09-08T04:55:00.000Z',
 };
 
-const stubState = { ideas: [IDEA], scripts: [SCRIPT], ideaStatus: 200 };
+const stubState = { ideas: [IDEA], scripts: [SCRIPT], ideaStatus: 200, libraryStatus: 200 };
 
 let stub;
 let stubUrl;
@@ -33,8 +33,14 @@ before(async () => {
     const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
     res.setHeader('Content-Type', 'application/json');
     if (pathname === '/auth/v1/user') return res.end(JSON.stringify({ id: USER_ID }));
-    if (pathname === '/rest/v1/ideas' && req.method === 'GET') return res.end(JSON.stringify(stubState.ideas));
-    if (pathname === '/rest/v1/scripts' && req.method === 'GET') return res.end(JSON.stringify(stubState.scripts));
+    if (pathname === '/rest/v1/ideas' && req.method === 'GET') {
+      if (stubState.libraryStatus !== 200) { res.statusCode = stubState.libraryStatus; return res.end('{}'); }
+      return res.end(JSON.stringify(stubState.ideas));
+    }
+    if (pathname === '/rest/v1/scripts' && req.method === 'GET') {
+      if (stubState.libraryStatus !== 200) { res.statusCode = stubState.libraryStatus; return res.end('{}'); }
+      return res.end(JSON.stringify(stubState.scripts));
+    }
     if (pathname === '/rest/v1/ideas' && req.method === 'POST') {
       if (stubState.ideaStatus !== 200) { res.statusCode = stubState.ideaStatus; return res.end('{}'); }
       const body = JSON.parse((await readBody(req)) || '{}');
@@ -65,7 +71,7 @@ before(async () => {
   await page.context().addCookies([{ name: 'spark-access-token', value: 'test-token', url }]);
   await page.addInitScript(() => {
     class FakeTrack { constructor() { this.onended = null; } stop() {} }
-    class FakeStream { constructor() { this.tracks = [new FakeTrack()]; } getTracks() { return this.tracks; } }
+    class FakeStream { constructor() { this.tracks = [new FakeTrack()]; } getTracks() { return this.tracks; } getAudioTracks() { return this.tracks; } }
     const mediaDevices = { getUserMedia: async () => new FakeStream() };
     try { Object.defineProperty(navigator, 'mediaDevices', { value: mediaDevices, configurable: true }); } catch { navigator.mediaDevices = mediaDevices; }
     class FakeAudioContext {
@@ -87,6 +93,25 @@ before(async () => {
       }
     }
     window.MediaRecorder = FakeMediaRecorder;
+    class FakeDataChannel {
+      constructor() { this.readyState = 'open'; }
+      addEventListener(type, handler) { if (type === 'message') window.__emitRealtimeEvent = data => handler({ data: JSON.stringify(data) }); }
+      send(data) { window.__realtimeClientEvents = [...(window.__realtimeClientEvents || []), JSON.parse(data)]; }
+      close() {}
+    }
+    class FakePeerConnection {
+      constructor() { this.connectionState = 'connected'; this.channel = new FakeDataChannel(); }
+      createDataChannel() { return this.channel; }
+      addTrack() {}
+      addEventListener() {}
+      async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
+      async setLocalDescription() {}
+      async setRemoteDescription() {
+        window.__emitRealtimeEvent?.({ type: 'conversation.item.input_audio_transcription.delta', item_id: 'item-1', delta: 'A live idea' });
+      }
+      close() { this.connectionState = 'closed'; }
+    }
+    window.RTCPeerConnection = FakePeerConnection;
   });
 }, { timeout: 120000 });
 
@@ -115,6 +140,83 @@ test('database ideas and scripts appear on Phone without fixture fallbacks', asy
   await expect(page.getByText('Your best idea may be one walk away.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Record with Teleprompter' }).click();
   await expect(page.getByText('Leave the desk for ten minutes.', { exact: true })).toBeVisible();
+});
+
+test('hovering an idea highlights only its clickable surface', async () => {
+  stubState.ideas = [IDEA]; stubState.scripts = [SCRIPT]; stubState.ideaStatus = 200; stubState.libraryStatus = 200;
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  const ideaButton = page.getByRole('button', { name: 'Walking unlocks ideas.', exact: true });
+  await ideaButton.hover();
+  const backgrounds = await ideaButton.evaluate(button => ({
+    button: getComputedStyle(button).backgroundColor,
+    row: getComputedStyle(button.parentElement).backgroundColor,
+  }));
+  expect(backgrounds).toEqual({ button: 'rgb(233, 229, 220)', row: 'rgba(0, 0, 0, 0)' });
+});
+
+test('pendant LED appears only while recording', async () => {
+  await page.goto(`${url}/home`);
+  const led = page.locator('.pendant-led');
+  expect(await led.evaluate(element => getComputedStyle(element).display)).toBe('none');
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await expect.poll(() => led.evaluate(element => getComputedStyle(element).display)).toBe('block');
+  const horizontalPosition = await led.evaluate(element => {
+    const ledBox = element.getBoundingClientRect();
+    const pendantBox = element.parentElement.getBoundingClientRect();
+    return Math.round(((ledBox.left + ledBox.width / 2 - pendantBox.left) / pendantBox.width) * 100);
+  });
+  expect(horizontalPosition).toBe(46);
+  await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await expect.poll(() => led.evaluate(element => getComputedStyle(element).display)).toBe('none');
+});
+
+test('selected ideas create a script and open it in Phone', async () => {
+  stubState.ideas = [IDEA]; stubState.scripts = []; stubState.ideaStatus = 200; stubState.libraryStatus = 200;
+  await page.route('**/api/scripts', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(JSON.parse(route.request().postData())).toEqual({ ideaIds: [IDEA.id] });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ script: { id: SCRIPT.id, title: 'Why walking unlocks ideas', status: 'Ready to record', ideaIds: [IDEA.id], text: SCRIPT.text } }),
+    });
+  });
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select Walking unlocks ideas.' }).check();
+  await page.getByRole('button', { name: 'Create script (1)' }).click();
+  await expect(page.getByRole('heading', { name: 'Why walking unlocks ideas', exact: true })).toBeVisible();
+  await page.unroute('**/api/scripts');
+});
+
+test('refresh button reloads the phone library and surfaces failures', async () => {
+  stubState.ideas = [IDEA]; stubState.scripts = [SCRIPT]; stubState.ideaStatus = 200; stubState.libraryStatus = 200;
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Walking unlocks ideas.', exact: true })).toBeVisible();
+  stubState.ideas = [IDEA, { id: '55555555-5555-4555-8555-555555555555', text: 'A freshly refreshed idea.', created_at: '2026-09-09T04:42:00.000Z' }];
+  await page.getByRole('button', { name: 'Refresh phone data' }).click();
+  await expect(page.getByRole('button', { name: 'A freshly refreshed idea.', exact: true })).toBeVisible();
+  stubState.libraryStatus = 503;
+  await page.getByRole('button', { name: 'Refresh phone data' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Could not load your library' })).toBeVisible();
+  stubState.libraryStatus = 200;
+});
+
+test('a successful refresh clears a failed initial library load', async () => {
+  stubState.ideas = [IDEA]; stubState.scripts = [SCRIPT]; stubState.ideaStatus = 200; stubState.libraryStatus = 503;
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.locator('.library-error')).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh phone data' }).click();
+  await expect(page.locator('.library-error')).toHaveCount(0);
+  await expect(page.locator('.refresh-error')).toHaveCount(1);
+  stubState.libraryStatus = 200;
+  await page.getByRole('button', { name: 'Refresh phone data' }).click();
+  await expect(page.getByRole('button', { name: 'Walking unlocks ideas.', exact: true })).toBeVisible();
+  await expect(page.locator('.library-error')).toHaveCount(0);
+  await expect(page.locator('.refresh-error')).toHaveCount(0);
 });
 
 test('empty database arrays render both empty states', async () => {
@@ -208,6 +310,38 @@ test('the recording panel shows a visible, animated live waveform', async () => 
   await page.getByRole('button', { name: 'Cancel' }).click();
 });
 
+test('live captions await completed text and retry the transcript route without batch transcription', async () => {
+  let transcriptRequests = 0;
+  let batchRequests = 0;
+  await page.route('**/api/realtime-token', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ value: 'ek_test', expiresAt: 1_800_000_000 }),
+  }));
+  await page.route('https://api.openai.com/v1/realtime/calls', route => route.fulfill({ status: 200, contentType: 'application/sdp', body: 'v=0\r\na=setup:active' }));
+  await page.route('**/api/capture/transcript', async route => {
+    transcriptRequests++;
+    expect(JSON.parse(route.request().postData())).toEqual({ transcript: 'A live idea, finalized.' });
+    if (transcriptRequests === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ kind: 'idea', idea: { id: 'live', title: 'A live idea', note: 'A live idea, finalized.', date: 'Today', time: '1:00', status: 'Raw' } }) });
+  });
+  await page.route('**/api/capture', async route => { batchRequests++; await route.fulfill({ status: 500, body: '{}' }); });
+
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await expect(page.getByRole('status', { name: 'Live transcript' })).toContainText('A live idea');
+  await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await expect.poll(() => page.evaluate(() => window.__realtimeClientEvents)).toEqual([{ type: 'input_audio_buffer.commit' }]);
+  await page.evaluate(() => window.setTimeout(() => window.__emitRealtimeEvent({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'item-1', transcript: 'A live idea, finalized.' }), 1_500));
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'Your idea, captured.' })).toBeVisible();
+  expect(transcriptRequests).toBe(2);
+  expect(batchRequests).toBe(0);
+
+  await page.unroute('**/api/realtime-token');
+  await page.unroute('https://api.openai.com/v1/realtime/calls');
+  await page.unroute('**/api/capture/transcript');
+  await page.unroute('**/api/capture');
+});
+
 test('capture no-match and error responses render their safe messages', async () => {
   stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
   await page.route('**/api/capture', async route => {
@@ -225,6 +359,7 @@ test('capture no-match and error responses render their safe messages', async ()
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
   await expect(page.locator('.error-message')).toHaveText(/try again/i);
+  await expect(page.getByRole('heading', { name: "Couldn't transcribe that." })).toBeVisible();
 });
 
 test('non-retryable capture failures do not resubmit the rejected recording', async () => {

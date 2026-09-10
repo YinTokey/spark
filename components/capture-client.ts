@@ -45,14 +45,10 @@ function audioExtension(type: string) {
   return "webm";
 }
 
-export async function uploadCapture(audio: Blob, signal?: AbortSignal): Promise<CaptureUploadResult> {
-  const type = audio.type || "audio/webm";
-  const form = new FormData();
-  form.set("audio", new File([audio], `capture.${audioExtension(type)}`, { type }));
-
+async function sendCapture(url: string, init: RequestInit, signal?: AbortSignal): Promise<CaptureUploadResult> {
   let response: Response;
   try {
-    response = await fetch("/api/capture", { method: "POST", body: form, signal });
+    response = await fetch(url, { ...init, signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     return retryError("Could not reach Spark. Check your connection and try again.");
@@ -68,4 +64,17 @@ export async function uploadCapture(audio: Blob, signal?: AbortSignal): Promise<
   try { parsed = JSON.parse(text); } catch { return retryError("Spark sent an unexpected response. Please try again."); }
   const result = parseResult(parsed);
   return result ?? retryError("Spark sent an unexpected response. Please try again.");
+}
+
+export function uploadTranscript(transcript: string, signal?: AbortSignal): Promise<CaptureUploadResult> {
+  return sendCapture('/api/capture/transcript', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript }),
+  }, signal);
+}
+
+export function uploadCapture(audio: Blob, signal?: AbortSignal): Promise<CaptureUploadResult> {
+  const type = audio.type || "audio/webm";
+  const form = new FormData();
+  form.set("audio", new File([audio], `capture.${audioExtension(type)}`, { type }));
+  return sendCapture('/api/capture', { method: 'POST', body: form }, signal);
 }
