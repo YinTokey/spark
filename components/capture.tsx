@@ -1,39 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Necklace } from "./necklace";
 import { captureNavigationItems, isPhoneTab } from "./capture-navigation";
-import type { CaptureUploadResult } from "./capture-client";
+import { uploadCapture, uploadTranscript, type CaptureUploadResult } from "./capture-client";
 import SparkPrototype from "./spark/spark-prototype";
 import { loadLibrary } from "./spark/library-client";
-import { useRecorder } from "./use-recorder";
-import { scriptParagraphs, type Idea, type LibraryData, type Script } from "@/lib/spark-data";
+import { useRecorder, type PendingCapture } from "./use-recorder";
+import { type Idea, type LibraryData, type Script } from "@/lib/spark-data";
 
 function SoundMark() {
   return <span className="sound-mark" aria-hidden="true">{[12, 24, 43, 58, 32, 18, 10].map((height, i) => <i key={i} style={{ height }} />)}</span>;
 }
 
-function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: CaptureUploadResult) => void; onViewScript: (scriptId: string) => void }) {
-  const recording = useRecorder({ onCreated });
+const MAX_PENDING_CAPTURES = 5;
+
+function CaptureExperience({ onQueued }: { onQueued: (capture: PendingCapture) => boolean }) {
+  const recording = useRecorder({ onQueued });
   const [playbackError, setPlaybackError] = useState(false);
-  const { phase, result } = recording;
+  const { phase } = recording;
   const busy = phase === "requesting" || phase === "processing";
   const isRecording = phase === "recording";
   const elapsed = `00:${String(recording.seconds).padStart(2, "0")}`;
-  const failure = result?.kind === "error" ? result : null;
 
   function press() {
     setPlaybackError(false);
     if (isRecording) recording.stop();
     else void recording.start();
-  }
-
-  function recoveryControl() {
-    if (!failure || failure.recovery === "retry") return <button className="text-button" onClick={recording.retryUpload}>Try again</button>;
-    if (failure.recovery === "record_again") return <button className="text-button" onClick={() => void recording.start()}>Record again</button>;
-    if (failure.recovery === "sign_in") return <Link className="text-button" href="/">Sign in again</Link>;
-    return <button className="text-button" onClick={recording.reset}>Back</button>;
   }
 
   return (
@@ -57,9 +50,9 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
           {(phase === "ready" || phase === "requesting" || phase === "error") && <div className="ready-content">
             <div className={`orb ${phase === "requesting" ? "waiting" : ""}`}><SoundMark /></div>
             <div aria-live="polite"><p className="state-label">{phase === "requesting" ? "ONE LITTLE PERMISSION" : phase === "error" ? "LET’S TRY THAT AGAIN" : "A THOUGHT WORTH KEEPING"}</p>
-              <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? failure ? "Couldn't transcribe that." : "Check your microphone." : "Ready when you are."}</h2></div>
+              <h2>{phase === "requesting" ? "Let’s hear your idea." : phase === "error" ? "Check your microphone." : "Ready when you are."}</h2></div>
             {phase === "error" ? <p className="error-message" role="alert">{recording.error}</p> : <p className="panel-copy">{phase === "requesting" ? "Allow microphone access in your browser to start capturing." : <>An idea just hit you?<br />Press the side button and start talking.</>}</p>}
-            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : phase === "error" ? recoveryControl() : <button className="text-button" onClick={() => void recording.start()}>Or try it here <span aria-hidden="true">↗</span></button>}
+            {phase === "requesting" ? <button className="text-button" onClick={recording.reset}>Cancel</button> : phase === "error" ? <button className="text-button" onClick={() => void recording.start()}>Record again</button> : <button className="text-button" onClick={() => void recording.start()}>Or try it here <span aria-hidden="true">↗</span></button>}
           </div>}
 
           {isRecording && <div className="recording-content">
@@ -78,27 +71,16 @@ function CaptureExperience({ onCreated, onViewScript }: { onCreated: (result: Ca
 
           {phase === "processing" && <div className="processing-content" role="status"><div className="orb"><span className="spinner" /></div><p className="state-label">CONNECTING THE DOTS</p><h2>Shaping your idea.</h2><p className="panel-copy">Transcribing your recording and shaping it into something useful.</p><p className="small-note">This usually takes a few seconds…</p><button className="text-button" onClick={recording.reset}>Cancel</button></div>}
 
-          {phase === "done" && result && <div className="result-content">
-            {result.kind === "idea" ? <>
-              <div className="result-heading"><span className="checkmark">✓</span><h2>Your idea, captured.</h2><span>{elapsed}</span></div>
-              <h3>{result.idea.title}</h3>
-              <p className="result-copy">{result.idea.note}</p>
-            </> : result.kind === "script" ? <>
-              <div className="result-heading"><span className="checkmark">✓</span><h2>Your script, ready.</h2><span>{elapsed}</span></div>
-              <h3>{result.script.title}</h3>
-              <p className="result-copy">{scriptParagraphs(result.script.text)[0] ?? result.script.title}</p>
-              <button className="primary-button" onClick={() => onViewScript(result.script.id)}><span aria-hidden="true">↗</span> View it in Phone → Scripts</button>
-            </> : <>
-              <div className="result-heading"><span className="checkmark">✓</span><h2>Almost there.</h2><span>{elapsed}</span></div>
-              <p className="result-copy">{result.message}</p>
-            </>}
-            <div className="audio-label">YOUR RECORDING <span>Transcribed, not stored</span></div>
+          {phase === "done" && <div className="result-content">
+            <div className="result-heading"><span className="checkmark">✓</span><h2>Saved on Spark One.</h2><span>{elapsed}</span></div>
+            <p className="result-copy">Your idea is ready to sync when you open Phone.</p>
+            <div className="audio-label">YOUR RECORDING <span>Stored until synced</span></div>
             <audio aria-label="Your recorded idea" controls src={recording.audioUrl} onError={() => setPlaybackError(true)} />
             {playbackError && <p className="playback-error" role="status">Playback is unavailable. Save the audio to listen on your device.</p>}
             <a className="download-link" href={recording.audioUrl} download="spark-idea">Save audio <span aria-hidden="true">↗</span></a>
             <button className="primary-button" onClick={recording.reset}><span aria-hidden="true">↻</span> Try another idea</button>
           </div>}
-          <div className="panel-bottom"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="7" width="8" height="6" rx="2" /><path d="M6 7V5a2 2 0 0 1 4 0v2" /></svg> Audio is transcribed to capture your idea, then discarded.</div>
+          <div className="panel-bottom"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="7" width="8" height="6" rx="2" /><path d="M6 7V5a2 2 0 0 1 4 0" /></svg> Audio stays on Spark One until it syncs, then is discarded.</div>
         </section>
       </main>
       <footer className="footer"><span className="footer-index">01 — CAPTURE THE SPARK</span><p><span /> MORE TALKING. LESS TYPING.</p><span className="footer-right">Thought → possibility</span></footer>
@@ -118,6 +100,16 @@ export default function Capture({ initialLibrary, libraryError }: { initialLibra
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [libraryLoadError, setLibraryLoadError] = useState(libraryError);
+  const [pendingCaptures, setPendingCaptures] = useState<PendingCapture[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
+  const pendingRef = useRef<PendingCapture[]>([]);
+  const syncingRef = useRef(false);
+  const syncAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => { pendingRef.current = pendingCaptures; }, [pendingCaptures]);
+  useEffect(() => () => syncAbort.current?.abort(), []);
 
   const onIdeaCreated = (idea: Idea) => setIdeas(current => prepend(current, idea));
   const onScriptCreated = (script: Script) => setScripts(current => prepend(current, script));
@@ -145,9 +137,53 @@ export default function Capture({ initialLibrary, libraryError }: { initialLibra
     else if (result.kind === "script") onScriptCreated(result.script);
   }
 
-  function openScript(scriptId: string) {
-    setTab("Phone");
-    setPendingScriptId(scriptId);
+  function queueCapture(capture: PendingCapture) {
+    if (pendingRef.current.length >= MAX_PENDING_CAPTURES) return false;
+    const next = [...pendingRef.current, capture];
+    pendingRef.current = next;
+    setPendingCaptures(next);
+    setSyncError("");
+    setSyncMessage("");
+    return true;
+  }
+
+  async function syncPendingCaptures() {
+    if (syncingRef.current || pendingRef.current.length === 0) return;
+    syncingRef.current = true;
+    setSyncing(true);
+    setSyncError("");
+    setSyncMessage("");
+    const controller = new AbortController();
+    syncAbort.current = controller;
+    let remaining = pendingRef.current;
+    try {
+      while (remaining.length > 0) {
+        const capture = remaining[0];
+        const result = capture.transcript
+          ? await uploadTranscript(capture.transcript, controller.signal)
+          : await uploadCapture(capture.audio, controller.signal);
+        if (result.kind === "error") {
+          setSyncError(result.message);
+          return;
+        }
+        if (result.kind === "no_recent_ideas") setSyncMessage(result.message);
+        else handleCreated(result);
+        remaining = remaining.slice(1);
+        pendingRef.current = remaining;
+        setPendingCaptures(remaining);
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setSyncError("Could not reach Spark. Check your connection and try again.");
+    } finally {
+      if (syncAbort.current === controller) syncAbort.current = null;
+      syncingRef.current = false;
+      setSyncing(false);
+    }
+  }
+
+  function selectTab(nextTab: string) {
+    setTab(nextTab);
+    if (isPhoneTab(nextTab)) void syncPendingCaptures();
   }
 
   return (
@@ -155,13 +191,13 @@ export default function Capture({ initialLibrary, libraryError }: { initialLibra
       <header className="header">
         <a className="brand" href="#capture" aria-label="Spark home">SPARK <span>by PrepVid</span></a>
         <nav className="navigation" aria-label="Main navigation">
-          {captureNavigationItems.map(item => <button key={item} aria-pressed={tab === item} className={tab === item ? "selected" : ""} onClick={() => setTab(item)}>{item}</button>)}
+          {captureNavigationItems.map(item => <button key={item} aria-pressed={tab === item} className={tab === item ? "selected" : ""} onClick={() => selectTab(item)}>{item}</button>)}
         </nav>
         <p className="header-note">A little space for your next big idea.</p>
       </header>
       {isPhoneTab(tab)
-        ? <main aria-label="Phone mock"><SparkPrototype ideas={ideas} scripts={scripts} onIdeaCreated={onIdeaCreated} onScriptCreated={onScriptCreated} libraryError={libraryLoadError} pendingScriptId={pendingScriptId} onPendingScriptConsumed={() => setPendingScriptId(null)} onRefresh={refreshLibrary} refreshing={refreshing} refreshError={refreshError} /></main>
-        : <CaptureExperience onCreated={handleCreated} onViewScript={openScript} />}
+        ? <main aria-label="Phone mock"><SparkPrototype ideas={ideas} scripts={scripts} onIdeaCreated={onIdeaCreated} onScriptCreated={onScriptCreated} libraryError={libraryLoadError} pendingScriptId={pendingScriptId} onPendingScriptConsumed={() => setPendingScriptId(null)} onRefresh={refreshLibrary} refreshing={refreshing} refreshError={refreshError} pendingCaptureCount={pendingCaptures.length} syncing={syncing} syncError={syncError} syncMessage={syncMessage} onRetrySync={() => void syncPendingCaptures()} /></main>
+        : <CaptureExperience onQueued={queueCapture} />}
     </div>
   );
 }

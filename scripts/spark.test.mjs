@@ -245,9 +245,11 @@ test('manual idea saving appears after success and retains input after a failure
   stubState.ideaStatus = 200;
 });
 
-test('a voice capture uploads and renders the returned idea', async () => {
+test('a voice capture stays queued until Phone opens, then syncs into the library', async () => {
   stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
+  let captureRequests = 0;
   await page.route('**/api/capture', async route => {
+    captureRequests++;
     expect(route.request().method()).toBe('POST');
     await route.fulfill({
       status: 200, contentType: 'application/json',
@@ -257,8 +259,44 @@ test('a voice capture uploads and renders the returned idea', async () => {
   await page.goto(`${url}/home`);
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
-  await expect(page.getByRole('heading', { name: 'Your idea, captured.' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'A captured idea' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved on Spark One.' })).toBeVisible();
+  expect(captureRequests).toBe(0);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'A captured idea', exact: true })).toBeVisible();
+  expect(captureRequests).toBe(1);
+});
+
+test('Phone syncs queued captures one at a time', async () => {
+  stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
+  let captureRequests = 0;
+  await page.route('**/api/capture', async route => {
+    captureRequests++;
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ kind: 'idea', idea: { id: `queued-${captureRequests}`, title: `Queued idea ${captureRequests}`, note: 'Saved after sync', date: 'Today', time: '1:00', status: 'Raw' } }),
+    });
+  });
+  await page.goto(`${url}/home`);
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await page.getByRole('button', { name: 'Try another idea' }).click();
+  await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+  await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Queued idea 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Queued idea 2', exact: true })).toBeVisible();
+  expect(captureRequests).toBe(2);
+});
+
+test('a sixth pending capture asks the user to sync before recording more', async () => {
+  stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
+  await page.goto(`${url}/home`);
+  for (let capture = 0; capture < 6; capture++) {
+    await page.getByRole('button', { name: 'Start recording with Spark' }).click();
+    await page.getByRole('button', { name: 'Finish my thought' }).click();
+    if (capture < 5) await page.getByRole('button', { name: 'Try another idea' }).click();
+  }
+  await expect(page.locator('.error-message')).toContainText('Spark One is full. Open Phone to sync your saved ideas first.');
 });
 
 test('the recording panel shows a visible, animated live waveform', async () => {
@@ -310,7 +348,7 @@ test('the recording panel shows a visible, animated live waveform', async () => 
   await page.getByRole('button', { name: 'Cancel' }).click();
 });
 
-test('live captions await completed text and retry the transcript route without batch transcription', async () => {
+test('live captions stay visible and their completed text syncs when Phone opens', async () => {
   let transcriptRequests = 0;
   let batchRequests = 0;
   await page.route('**/api/realtime-token', route => route.fulfill({
@@ -320,7 +358,6 @@ test('live captions await completed text and retry the transcript route without 
   await page.route('**/api/capture/transcript', async route => {
     transcriptRequests++;
     expect(JSON.parse(route.request().postData())).toEqual({ transcript: 'A live idea, finalized.' });
-    if (transcriptRequests === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ kind: 'idea', idea: { id: 'live', title: 'A live idea', note: 'A live idea, finalized.', date: 'Today', time: '1:00', status: 'Raw' } }) });
   });
   await page.route('**/api/capture', async route => { batchRequests++; await route.fulfill({ status: 500, body: '{}' }); });
@@ -331,9 +368,11 @@ test('live captions await completed text and retry the transcript route without 
   await page.getByRole('button', { name: 'Finish my thought' }).click();
   await expect.poll(() => page.evaluate(() => window.__realtimeClientEvents)).toEqual([{ type: 'input_audio_buffer.commit' }]);
   await page.evaluate(() => window.setTimeout(() => window.__emitRealtimeEvent({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'item-1', transcript: 'A live idea, finalized.' }), 1_500));
-  await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.getByRole('heading', { name: 'Your idea, captured.' })).toBeVisible();
-  expect(transcriptRequests).toBe(2);
+  await expect(page.getByRole('heading', { name: 'Saved on Spark One.' })).toBeVisible();
+  expect(transcriptRequests).toBe(0);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'A live idea', exact: true })).toBeVisible();
+  expect(transcriptRequests).toBe(1);
   expect(batchRequests).toBe(0);
 
   await page.unroute('**/api/realtime-token');
@@ -350,19 +389,20 @@ test('capture no-match and error responses render their safe messages', async ()
   await page.goto(`${url}/home`);
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
   await expect(page.getByText('Capture a relevant idea first.', { exact: true })).toBeVisible();
   await page.unroute('**/api/capture');
   await page.route('**/api/capture', async route => {
     await route.fulfill({ status: 502, contentType: 'application/json', body: '{}' });
   });
-  await page.getByRole('button', { name: 'Try another idea' }).click();
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
-  await expect(page.locator('.error-message')).toHaveText(/try again/i);
-  await expect(page.getByRole('heading', { name: "Couldn't transcribe that." })).toBeVisible();
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(/try again/i);
 });
 
-test('non-retryable capture failures do not resubmit the rejected recording', async () => {
+test('failed Phone sync keeps the recording queued for a later retry', async () => {
   stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
   let requests = 0;
   await page.route('**/api/capture', async route => {
@@ -372,14 +412,12 @@ test('non-retryable capture failures do not resubmit the rejected recording', as
   await page.goto(`${url}/home`);
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
-  await expect(page.getByRole('button', { name: 'Record again' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Record again' }).click();
-  await expect(page.getByRole('button', { name: 'Finish my thought' })).toBeVisible();
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retry sync' })).toBeVisible();
   expect(requests).toBe(1);
 });
 
-test('reset during a delayed capture prevents the stale result from appearing', async () => {
+test('starting another capture leaves queued ideas available to sync', async () => {
   stubState.ideas = []; stubState.scripts = []; stubState.ideaStatus = 200;
   await page.route('**/api/capture', async route => {
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -388,10 +426,11 @@ test('reset during a delayed capture prevents the stale result from appearing', 
   await page.goto(`${url}/home`);
   await page.getByRole('button', { name: 'Start recording with Spark' }).click();
   await page.getByRole('button', { name: 'Finish my thought' }).click();
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Try another idea' }).click();
   await page.waitForTimeout(700);
   await expect(page.getByRole('heading', { name: 'Ready when you are.' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your idea, captured.' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Phone', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stale', exact: true })).toBeVisible();
 });
 
 test('mobile width does not overflow and keyboard focus reaches new controls', async () => {
