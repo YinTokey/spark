@@ -140,6 +140,12 @@ test('database ideas and scripts appear on Phone without fixture fallbacks', asy
   await expect(page.getByText('Your best idea may be one walk away.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Record with Teleprompter' }).click();
   await expect(page.getByText('Leave the desk for ten minutes.', { exact: true })).toBeVisible();
+  const promptBounds = await page.locator('.prompt-overlay').evaluate(element => {
+    const prompt = element.getBoundingClientRect();
+    const recorder = element.parentElement.getBoundingClientRect();
+    return { promptBottom: prompt.bottom - recorder.top, recorderHeight: recorder.height };
+  });
+  expect(promptBounds.promptBottom).toBeLessThanOrEqual(promptBounds.recorderHeight / 2 + 1);
 });
 
 test('hovering an idea highlights only its clickable surface', async () => {
