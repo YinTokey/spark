@@ -19,6 +19,11 @@ type Props = {
   onRefresh: () => void;
   refreshing: boolean;
   refreshError: string;
+  pendingCaptureCount: number;
+  syncing: boolean;
+  syncError: string;
+  syncMessage: string;
+  onRetrySync: () => void;
 };
 
 function Badge({ status }: { status: Idea["status"] | Script["status"] }) {
@@ -68,7 +73,7 @@ function IdeaForm({ onCreated, onCancel }: { onCreated: (idea: Idea) => void; on
   </form>;
 }
 
-export default function SparkPrototype({ ideas, scripts, onIdeaCreated, onScriptCreated, libraryError, pendingScriptId, onPendingScriptConsumed, onRefresh, refreshing, refreshError }: Props) {
+export default function SparkPrototype({ ideas, scripts, onIdeaCreated, onScriptCreated, libraryError, pendingScriptId, onPendingScriptConsumed, onRefresh, refreshing, refreshError, pendingCaptureCount, syncing, syncError, syncMessage, onRetrySync }: Props) {
   const [tab, setTab] = useState<"Ideas" | "Scripts">(pendingScriptId ? "Scripts" : "Ideas");
   const [screen, setScreen] = useState<Screen>(() => {
     const script = pendingScriptId ? scripts.find(item => item.id === pendingScriptId) : undefined;
@@ -143,6 +148,9 @@ export default function SparkPrototype({ ideas, scripts, onIdeaCreated, onScript
         <div className="phone-screen">
           <div className="status-bar" aria-hidden="true"><span>9:41</span><div className="dynamic-island"><i /></div><div className="status-icons"><span className="signal"><i /><i /><i /><i /></span><svg width="17" height="14" viewBox="0 0 20 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 5q8-7 16 0M5 8q5-5 10 0M8 11q2-2 4 0" /><circle cx="10" cy="14" r="1" fill="currentColor" stroke="none" /></svg><span className="battery" /></div></div>
           {recording ? <Teleprompter script={screen.script} onClose={() => setScreen({ kind: "script", script: screen.script })} /> : <div className="app-content" ref={content}>
+            {(pendingCaptureCount > 0 || syncing || syncError || syncMessage) && <div className="sync-status" role="status" aria-live="polite">
+              {syncing ? `Syncing ${pendingCaptureCount} ${pendingCaptureCount === 1 ? "idea" : "ideas"}…` : syncError ? <>{syncError} <button className="text-button" onClick={onRetrySync}>Retry sync</button></> : syncMessage || `${pendingCaptureCount} ${pendingCaptureCount === 1 ? "idea" : "ideas"} waiting to sync.`}
+            </div>}
             {libraryError && <p className="library-error" role="alert">Couldn’t load your library. Check your connection and try again.</p>}
             {screen.kind === "library" ? <>
               <header className="library-header"><div><h1 ref={heading} tabIndex={-1}>Spark<span className="brand-period" aria-hidden="true">.</span></h1><p>Capture thoughts. Create better videos.</p></div><button className="add-button" aria-label="Add idea" onClick={() => setScreen({ kind: "new" })}><Icon name="plus" size={25} /></button></header>
