@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "**/out/**",
     "**/build/**",
     ".worktrees/**",
+    ".ppt-build/**",
+    ".ppt-output/**",
+    ".codex-finalizer/**",
     "next-env.d.ts",
   ]),
 ]);
