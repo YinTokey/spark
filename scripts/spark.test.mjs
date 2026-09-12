@@ -172,7 +172,7 @@ test('pendant LED appears only while recording', async () => {
     const pendantBox = element.parentElement.getBoundingClientRect();
     return Math.round(((ledBox.left + ledBox.width / 2 - pendantBox.left) / pendantBox.width) * 100);
   });
-  expect(horizontalPosition).toBe(46);
+  expect(horizontalPosition).toBe(49);
   await page.getByRole('button', { name: 'Finish my thought' }).click();
   await expect.poll(() => led.evaluate(element => getComputedStyle(element).display)).toBe('none');
 });

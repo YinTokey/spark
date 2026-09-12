@@ -167,9 +167,9 @@ test('necklace artwork preserves its intrinsic aspect ratio', async ({ page }) =
     const necklace = document.createElement('div');
     necklace.className = 'necklace';
     const image = document.createElement('img');
-    image.src = '/images/necklace.svg';
-    image.width = 520;
-    image.height = 850;
+    image.src = '/images/spark-pendant-front-transparent.png';
+    image.width = 1024;
+    image.height = 1536;
     necklace.append(image);
     host.append(necklace);
     document.body.append(host);
@@ -178,7 +178,7 @@ test('necklace artwork preserves its intrinsic aspect ratio', async ({ page }) =
     return { width: bounds.width, height: bounds.height };
   });
 
-  expect(dimensions.width / dimensions.height).toBeCloseTo(520 / 850, 2);
+  expect(dimensions.width / dimensions.height).toBeCloseTo(1024 / 1536, 2);
 });
 
 test('closing the popup cancels a stale login request and clears credentials', async ({ page }) => {

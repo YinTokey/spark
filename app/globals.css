@@ -176,14 +176,14 @@ h1, h2, h3, p { margin: 0; }
 .intro-foot { display: flex; align-items: flex-start; gap: 12px; margin-top: auto; color: #737872; font-size: 12px; line-height: 1.5; }
 .tiny-spark { color: #343b31; font-size: 20px; }
 .product-stage { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; container-type: size; }
-.necklace { position: relative; width: min(92cqw, 520px, calc(100cqh * .611765)); height: auto; aspect-ratio: 520 / 850; display: flex; justify-content: center; }
+.necklace { position: relative; width: min(92cqw, 520px, calc(100cqh * .666667)); height: auto; aspect-ratio: 1024 / 1536; display: flex; justify-content: center; }
 .necklace > img { width: auto; height: auto; max-width: 100%; max-height: 100%; align-self: center; object-fit: contain; object-position: center; }
-.pendant-button { position: absolute; top: 64%; right: 22%; width: 14%; height: 15%; border: 0; border-radius: 999px; background: transparent; }
+.pendant-button { position: absolute; top: 45.5%; right: 19%; width: 14%; height: 15%; border: 0; border-radius: 999px; background: transparent; }
 .pendant-button::before { position: absolute; top: 50%; left: 50%; width: 12px; height: 42px; border-radius: 999px; background: #f4f5ef8f; box-shadow: 0 0 0 1px #252a25b8, 0 0 16px #f8fff0; content: ""; opacity: 0; transform: translate(-50%, -50%); }
 .button-ring { position: absolute; top: 50%; left: 50%; width: 38px; height: 68px; border: 1px solid #747e70; border-radius: 999px; opacity: 0; transform: translate(-50%, -50%) scale(.65); }
-.pendant-led { display: none; position: absolute; z-index: 1; top: 85.5%; left: 46%; width: 4px; height: 4px; border-radius: 50%; background: #ed3841; box-shadow: 0 0 5px #ed3841, 0 0 10px #ed384180; pointer-events: none; transform: translate(-50%, -50%); }
+.pendant-led { display: none; position: absolute; z-index: 1; top: 78%; left: 49%; width: 4px; height: 4px; border-radius: 50%; background: #ed3841; box-shadow: 0 0 5px #ed3841, 0 0 10px #ed384180; pointer-events: none; transform: translate(-50%, -50%); }
 .necklace.is-recording .pendant-led { display: block; animation: pendant-led-pulse 1.6s ease-in-out infinite; }
-.press-note { position: absolute; top: 65%; right: -5%; display: flex; align-items: center; color: #383d35; font-family: "Bradley Hand", cursive; font-size: 18px; transform: rotate(-5deg); }
+.press-note { position: absolute; top: 46%; right: -5%; display: flex; align-items: center; color: #383d35; font-family: "Bradley Hand", cursive; font-size: 18px; pointer-events: none; transform: rotate(-5deg); }
 .press-note svg { width: 64px; height: 48px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .necklace.is-pressed > img { animation: pendant-buzz .42s ease-out; }
 .necklace.is-pressed .pendant-button { animation: pendant-press .42s ease-out; }
@@ -275,7 +275,7 @@ h1, h2, h3, p { margin: 0; }
   .experience .intro { min-height: 430px; padding: 70px 24px 36px; }
   .experience .intro h1 { font-size: 44px; }
   .product-stage { min-height: 580px; }
-  .necklace { width: min(88cqw, 430px, calc(100cqh * .611765)); }
+  .necklace { width: min(88cqw, 430px, calc(100cqh * .666667)); }
   .capture-panel { width: calc(100% - 32px); min-height: 560px; max-height: none; margin: 0 16px 32px; }
   .ready-content, .recording-content, .processing-content, .result-content { padding-inline: 24px; }
   .experience .footer { display: none; }

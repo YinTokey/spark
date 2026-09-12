@@ -11,7 +11,7 @@ test.describe('pendant interaction', () => {
         const necklace = document.createElement('div');
         necklace.className = 'necklace';
         necklace.innerHTML = `
-          <img src="/necklace.svg" width="520" height="850" alt="">
+          <img src="/images/spark-pendant-front-transparent.png" width="1024" height="1536" alt="">
           <button class="pendant-button" aria-label="Start recording with Spark"><span class="button-ring"></span></button>
           <div class="press-note"><span>Press here</span><svg viewBox="0 0 82 58"><path d="M75 5Q70 42 10 42m0 0 12-9m-12 9 14 6"></path></svg></div>`;
         productStage.append(necklace);
@@ -30,12 +30,12 @@ test.describe('pendant interaction', () => {
         };
       }, stage);
 
-      expect(geometry.aspectRatio).toBeCloseTo(520 / 850, 2);
+      expect(geometry.aspectRatio).toBeCloseTo(1024 / 1536, 2);
       expect(geometry.fitsStage).toBe(true);
-      expect(geometry.buttonX).toBeGreaterThan(0.67);
-      expect(geometry.buttonX).toBeLessThan(0.76);
-      expect(geometry.buttonY).toBeGreaterThan(0.68);
-      expect(geometry.buttonY).toBeLessThan(0.75);
+      expect(geometry.buttonX).toBeGreaterThan(0.7);
+      expect(geometry.buttonX).toBeLessThan(0.78);
+      expect(geometry.buttonY).toBeGreaterThan(0.5);
+      expect(geometry.buttonY).toBeLessThan(0.56);
       expect(Math.abs(geometry.noteY - geometry.buttonY)).toBeLessThan(0.07);
     });
   }

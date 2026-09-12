@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import pendantFront from "@/public/images/spark-pendant-front-transparent.png";
 import { activatePendant } from "./necklace/haptics";
 
 type Props = { recording: boolean; busy: boolean; onPress: () => void };
@@ -20,7 +21,7 @@ export function Necklace({ recording, busy, onPress }: Props) {
 
   return (
     <div className={`necklace ${recording ? "is-recording" : ""} ${pressed ? "is-pressed" : ""}`}>
-      <Image src="/necklace.svg" alt="Spark, a polished black oval pendant with a brushed silver edge and black cord" width={520} height={850} preload />
+      <Image src={pendantFront} alt="Spark, a polished black oval pendant with a brushed silver edge on a silver chain" sizes="(max-width: 767px) 88vw, 520px" preload />
       <button className="pendant-button" disabled={busy} aria-label={recording ? "Stop recording with Spark" : "Start recording with Spark"} onClick={pressPendant}>
         <span className="button-ring" />
       </button>
