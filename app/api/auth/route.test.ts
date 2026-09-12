@@ -5,6 +5,7 @@ import { POST } from './route.ts';
 
 const originalUrl = process.env.SUPABASE_URL;
 const originalKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
   mock.restoreAll();
@@ -12,6 +13,8 @@ afterEach(() => {
   else process.env.SUPABASE_URL = originalUrl;
   if (originalKey === undefined) delete process.env.SUPABASE_PUBLISHABLE_KEY;
   else process.env.SUPABASE_PUBLISHABLE_KEY = originalKey;
+  if (originalNodeEnv === undefined) Reflect.deleteProperty(process.env, 'NODE_ENV');
+  else Reflect.set(process.env, 'NODE_ENV', originalNodeEnv);
 });
 
 function authRequest(body: Record<string, string>) {
@@ -43,6 +46,15 @@ test('password registration uses the Supabase signup endpoint', async () => {
   assert.equal(fetchMock.mock.calls[0].arguments[0], 'https://project.supabase.co/auth/v1/signup');
 });
 
+test('development registration does not require an invitation code', async () => {
+  Reflect.set(process.env, 'NODE_ENV', 'development');
+  configureSupabase();
+  const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({ access_token: 'access', refresh_token: 'refresh' }));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1' }));
+  assert.equal(response.status, 200);
+  assert.equal(fetchMock.mock.calls[0].arguments[0], 'https://project.supabase.co/auth/v1/signup');
+});
+
 test('registration without an immediate session asks for email confirmation', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => Response.json({ id: 'user-id', email: 'creator@example.com' }));
@@ -69,11 +81,15 @@ test('server rejects mismatched registration emails before Supabase', async () =
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 
-test('server rejects an invalid invitation code before Supabase', async () => {
-  configureSupabase();
-  const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({}));
-  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1', invitationCode: 'wrong' }));
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: 'Enter a valid invitation code.' });
-  assert.equal(fetchMock.mock.callCount(), 0);
-});
+for (const [description, invitationCode] of [['an invalid', 'wrong'], ['a missing', undefined]] as const) {
+  test(`server rejects ${description} invitation code outside development before Supabase`, async () => {
+    Reflect.set(process.env, 'NODE_ENV', 'production');
+    configureSupabase();
+    const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({}));
+    const registration = { mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1' };
+    const response = await POST(authRequest(invitationCode ? { ...registration, invitationCode } : registration));
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'Enter a valid invitation code.' });
+    assert.equal(fetchMock.mock.callCount(), 0);
+  });
+}

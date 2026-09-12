@@ -29,6 +29,8 @@ function ReferencePhoto({ image, alt, source }: { image: string; alt: string; so
 }
 
 export default function Home() {
+  const invitationCodeRequired = process.env.NODE_ENV !== 'development';
+
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
     <main id="main">
@@ -44,7 +46,7 @@ export default function Home() {
           <p className="hero-eyebrow">Wearable AI for creators</p>
           <h1 id="hero-title">Ideas move<br /> with you.</h1>
           <p>Capture thoughts anywhere.<br />Let AI shape them into content.</p>
-          <ActionButton variant="demo" />
+          <ActionButton variant="demo" invitationCodeRequired={invitationCodeRequired} />
         </div>
         </div>
       </section>
@@ -80,7 +82,7 @@ export default function Home() {
           <Image src={moment.image} alt={moment.alt} fill sizes="(max-width: 348px) 272px, (max-width: 767px) 78vw, (max-width: 1288px) calc((100vw - 68px) / 5), 244px" />
           <h3>{moment.title}</h3>
         </article>)}</div>
-        <div className="moments-cta"><ActionButton variant="access" /></div>
+        <div className="moments-cta"><ActionButton variant="access" invitationCodeRequired={invitationCodeRequired} /></div>
       </section>
     </main>
   </>;

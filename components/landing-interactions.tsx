@@ -13,7 +13,7 @@ function getError(value: unknown) {
 
 type AuthMode = 'login' | 'register';
 
-export function ActionButton({ variant }: { variant: 'demo' | 'access' }) {
+export function ActionButton({ variant, invitationCodeRequired }: { variant: 'demo' | 'access'; invitationCodeRequired: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
@@ -61,7 +61,7 @@ export function ActionButton({ variant }: { variant: 'demo' | 'access' }) {
       setError('Email addresses do not match.');
       return;
     }
-    if (mode === 'register' && invitationCode !== 'sparkvid') {
+    if (mode === 'register' && invitationCodeRequired && invitationCode !== 'sparkvid') {
       setError('Enter a valid invitation code.');
       return;
     }
@@ -80,7 +80,9 @@ export function ActionButton({ variant }: { variant: 'demo' | 'access' }) {
       const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'register' ? { mode, email, confirmEmail, password, invitationCode } : { mode, email, password }),
+        body: JSON.stringify(mode === 'register'
+          ? { mode, email, confirmEmail, password, ...(invitationCodeRequired ? { invitationCode } : {}) }
+          : { mode, email, password }),
         signal: controller.signal,
       });
       const result: unknown = await response.json();
@@ -125,8 +127,10 @@ export function ActionButton({ variant }: { variant: 'demo' | 'access' }) {
           {mode === 'register' && <>
             <label htmlFor="auth-confirm-email">Confirm email</label>
             <input id="auth-confirm-email" name="confirmEmail" type="email" inputMode="email" autoComplete="email" placeholder="Enter your email again" maxLength={254} disabled={submitting} />
-            <label htmlFor="auth-invitation-code">Invitation code</label>
-            <input id="auth-invitation-code" name="invitationCode" type="text" autoComplete="off" disabled={submitting} />
+            {invitationCodeRequired && <>
+              <label htmlFor="auth-invitation-code">Invitation code</label>
+              <input id="auth-invitation-code" name="invitationCode" type="text" autoComplete="off" disabled={submitting} />
+            </>}
           </>}
           <label htmlFor="auth-password">Password</label>
           <input id="auth-password" name="password" type="password" placeholder="At least 6 characters" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={6} maxLength={72} disabled={submitting} />

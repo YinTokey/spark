@@ -32,6 +32,7 @@ before(async () => {
   stub = createServer(async (req, res) => {
     const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
     res.setHeader('Content-Type', 'application/json');
+    if (pathname === '/auth/v1/signup' && req.method === 'POST') return res.end(JSON.stringify({ access_token: 'access', refresh_token: 'refresh' }));
     if (pathname === '/auth/v1/user') return res.end(JSON.stringify({ id: USER_ID }));
     if (pathname === '/rest/v1/ideas' && req.method === 'GET') {
       if (stubState.libraryStatus !== 200) { res.statusCode = stubState.libraryStatus; return res.end('{}'); }
@@ -463,4 +464,17 @@ test('product viewer changes pendant angles with its controls and keyboard', asy
   await viewer.focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('img', { name: 'Spark pendant, back view' })).toBeVisible();
+});
+
+test('local registration does not ask for an invitation code', async () => {
+  await page.context().clearCookies();
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Try the demo' }).click();
+  await page.getByRole('button', { name: 'Register' }).click();
+  await expect(page.getByLabel('Invitation code')).toHaveCount(0);
+  await page.getByLabel('Email', { exact: true }).fill('creator@example.com');
+  await page.getByLabel('Confirm email').fill('creator@example.com');
+  await page.getByLabel('Password').fill('secret1');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(`${url}/home`);
 });
