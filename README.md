@@ -25,9 +25,3 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
-
-## Check the project
-
-```bash
-npm run check
-```

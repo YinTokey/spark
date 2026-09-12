@@ -59,6 +59,11 @@ A change is incomplete unless it is secure, observable, testable, accessible, an
 Never:
 
 - expose server secrets through `NEXT_PUBLIC_*`, client components, responses, URLs, or logs;
+- create example, fixture, test, or documentation credentials that resemble
+  plausible production secrets. Use conspicuous placeholders such as
+  `FAKE_API_KEY_FOR_TESTS_ONLY`, with any required prefix or length supplied by
+  repeated, obviously synthetic text rather than random, UUID-like, or
+  provider-shaped values;
 - put access or refresh tokens in URLs, `localStorage`, or `sessionStorage`;
 - treat decoded JWT contents as proof of authentication;
 - rely on client-side checks for authorization, billing, ownership, or credit enforcement;
@@ -211,6 +216,15 @@ The hook checks the working tree, not an isolated staged snapshot; partial
 staging still requires reviewing the staged diff and PR CI. It does not run
 builds, behavioral tests, secret scanning, or independent agent review. Local
 hooks can be bypassed and do not replace the full gate.
+
+Before every commit, inspect the complete staged diff and run the repository's
+configured secret scanner, if present. Do not commit until every credential-like
+value is confirmed to be either a legitimate non-secret identifier or an
+unmistakably fake placeholder. Treat realistic-looking generated API keys,
+tokens, UUID-like credentials, and provider-shaped test values as failures even
+when they are not active secrets; replace them with conspicuously synthetic
+values before committing. This agent-side check is required even when the Git
+hook does not perform secret scanning.
 
 Run focused tests while developing, then run the complete gate before declaring completion.
 
