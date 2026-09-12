@@ -452,3 +452,15 @@ test('mobile width does not overflow and keyboard focus reaches new controls', a
   await expect(page.getByRole('heading', { name: 'Why walking unlocks ideas', exact: true })).toBeFocused();
   await page.setViewportSize({ width: 1440, height: 1050 });
 });
+
+test('product viewer changes pendant angles with its controls and keyboard', async () => {
+  await page.goto(url);
+  const viewer = page.getByRole('group', { name: /Spark pendant angle viewer/i });
+  await expect(page.getByRole('img', { name: 'Spark pendant, front view' })).toBeVisible();
+  await page.getByRole('button', { name: 'Side', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Spark pendant, side view' })).toBeVisible();
+  await expect(page.getByText('One button, right where you need it.')).toBeVisible();
+  await viewer.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('img', { name: 'Spark pendant, back view' })).toBeVisible();
+});

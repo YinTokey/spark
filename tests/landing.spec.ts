@@ -2,15 +2,68 @@ import { test, expect } from '@playwright/test';
 
 test('renders the complete Spark story and stays within the viewport', async ({ page }) => {
   await page.goto('/');
-  for (const heading of ['Ideas move with you.', 'Great ideas don’t wait.', 'From a thought to a video.']) {
+  for (const heading of ['Ideas move with you.', 'Close to your thoughts. Easy on everything else.', 'For content creators, great ideas don’t wait.', 'From a thought to a video.']) {
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
   }
-  await expect(page.locator('main > section')).toHaveCount(4);
+  await expect(page.locator('main > section')).toHaveCount(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.getByRole('link', { name: 'Spark by PrepVid home' })).toBeVisible();
   await expect(page.getByRole('navigation')).toHaveCount(0);
   await expect(page.getByText('Press to capture')).toHaveCount(0);
   await expect(page.getByText('A wearable AI companion for creators.')).toHaveCount(0);
+  await expect(page.getByText('Spark lets creators think out loud instead.', { exact: true })).toHaveCount(0);
+});
+
+test('product viewer stays white and switches pendant angles', async ({ page }, testInfo) => {
+  await page.goto('/');
+  const viewer = page.getByRole('group', { name: /Spark pendant angle viewer/i });
+  const frontImage = page.getByRole('img', { name: 'Spark pendant, front view' });
+  await expect(frontImage).toBeVisible();
+  await expect(page.getByText('Swipe or drag to explore', { exact: true })).toHaveCount(0);
+  const separators = await page.locator('#product').evaluate(element => {
+    const gridElement = element.querySelector('.product-grid');
+    const stageElement = element.querySelector('.product-viewer-stage');
+    if (!gridElement || !stageElement) throw new Error('Product viewer layout is missing.');
+    const grid = getComputedStyle(gridElement);
+    const stage = getComputedStyle(stageElement);
+    return [grid.borderTopWidth, grid.borderBottomWidth, stage.borderRightWidth, stage.borderBottomWidth];
+  });
+  expect(separators).toEqual(['0px', '0px', '0px', '0px']);
+  expect(await page.locator('#product').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(255, 255, 255)');
+  const darkestBackgroundChannel = await frontImage.evaluate(element => {
+    const image = element as HTMLImageElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 96;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas context is unavailable.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 28, 4, 40).data;
+    let darkest = 255;
+    for (let index = 0; index < pixels.length; index += 4) {
+      darkest = Math.min(darkest, pixels[index], pixels[index + 1], pixels[index + 2]);
+    }
+    return darkest;
+  });
+  expect(darkestBackgroundChannel).toBeGreaterThan(215);
+  await page.getByRole('button', { name: 'Side', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Spark pendant, side view' })).toBeVisible();
+  await viewer.focus();
+  await viewer.press('ArrowRight');
+  await expect(page.getByRole('img', { name: 'Spark pendant, back view' })).toBeVisible();
+  if (testInfo.project.name === 'mobile') return;
+  const bounds = await viewer.boundingBox();
+  if (!bounds) throw new Error('Product viewer is not measurable.');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 20, bounds.y + bounds.height / 2);
+  await page.mouse.up();
+  await expect(page.getByRole('img', { name: 'Spark pendant, back view' })).toBeVisible();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 90, bounds.y + bounds.height / 2);
+  await page.mouse.up();
+  await expect(page.getByRole('img', { name: 'Spark pendant, side view' })).toBeVisible();
 });
 
 test('Try the demo opens login and validates email and password locally', async ({ page }) => {
@@ -94,7 +147,7 @@ test('necklace artwork preserves its intrinsic aspect ratio', async ({ page }) =
     const necklace = document.createElement('div');
     necklace.className = 'necklace';
     const image = document.createElement('img');
-    image.src = '/necklace.svg';
+    image.src = '/images/necklace.svg';
     image.width = 520;
     image.height = 850;
     necklace.append(image);

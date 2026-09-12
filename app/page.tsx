@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { Icon } from '@/components/icon';
 import { ActionButton } from '@/components/landing-interactions';
+import { ProductViewer } from '@/components/product-viewer';
 
 const problems: { title: string; copy: string; image: string; alt: string }[] = [
   { title: 'Ideas happen away from the desk.', copy: 'On a walk, at the gym, in the shower, inspiration doesn’t wait for your laptop.', image: 'walk-photo', alt: 'A creator wearing Spark on a walk through a sunlit park' },
@@ -37,7 +38,7 @@ export default function Home() {
         </header>
         <div className="hero-stage">
         <div className="hero-visual">
-          <Image className="scene-photo hero-photo" src="/images/hero-v4.webp" alt="A creator wearing the Spark pendant beside a calm river" fill sizes="100vw" preload />
+          <Image className="scene-photo hero-photo" src="/images/hero-v5.webp" alt="A creator wearing the Spark pendant beside a calm river" fill sizes="100vw" preload />
         </div>
         <div className="hero-copy">
           <p className="hero-eyebrow">Wearable AI for creators</p>
@@ -48,13 +49,14 @@ export default function Home() {
         </div>
       </section>
 
+      <ProductViewer />
+
       <section id="problem" className="problem section-panel" aria-labelledby="problem-title">
-        <div className="section-heading"><h2 id="problem-title">Great ideas don’t wait.</h2><p>Inspiration shows up anytime, anywhere, but it’s too easy to lose it.</p></div>
+        <div className="section-heading"><h2 id="problem-title">For content creators, great ideas don’t wait.</h2><p>Inspiration shows up anytime, anywhere, but it’s too easy to lose it.</p></div>
         <div className="problem-grid">{problems.map((problem) => <article key={problem.title}>
           <div className="problem-image"><ReferencePhoto image={problem.image} alt={problem.alt} source="problem" /></div>
           <div className="card-copy"><h3>{problem.title}</h3><p>{problem.copy}</p></div>
         </article>)}</div>
-        <div className="problem-end"><h3>Spark lets creators think out loud instead.</h3></div>
       </section>
 
       <section id="how-it-works" className="how section-panel" aria-labelledby="how-title">

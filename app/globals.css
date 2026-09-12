@@ -38,6 +38,27 @@ h1, h2, h3, p { margin: 0; }
 .eyebrow { color: #727b70; font-size: .92vw; letter-spacing: .32em; line-height: 1.5; font-weight: 650; text-transform: uppercase; }
 .section-heading h2 { font-size: clamp(32px, 3.2vw, 48px); line-height: 1.12; font-weight: 600; letter-spacing: -.045em; }
 .section-heading > p:last-child { max-width: 48ch; margin: 18px auto 0; font-size: 18px; line-height: 1.55; color: var(--muted); }
+.product { overflow: hidden; padding-top: clamp(88px, 8vw, 128px); padding-bottom: clamp(88px, 8vw, 128px); background: #fff; }
+.product-heading { max-width: 760px; margin: 0 auto; text-align: center; }
+.product-kicker { margin-bottom: 16px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; }
+.product-heading h2 { font-size: clamp(34px, 4vw, 58px); line-height: 1.08; font-weight: 600; letter-spacing: -.055em; }
+.product-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, .82fr); align-items: stretch; gap: 0; max-width: 1160px; margin: 52px auto 0; }
+.product-viewer-stage { position: relative; display: grid; place-items: center; min-height: 620px; outline: 0; touch-action: pan-y; cursor: grab; background: #fff; }
+.product-viewer-stage:active { cursor: grabbing; }
+.product-viewer-stage:focus-visible { box-shadow: inset 0 0 0 3px #356d88; }
+.product-image { width: min(88%, 500px); height: auto; max-height: 680px; object-fit: contain; user-select: none; pointer-events: none; animation: product-view-in .28s ease both; }
+.product-copy { align-self: center; padding: clamp(44px, 5vw, 76px); }
+.product-view-label { color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
+.product-copy h3 { max-width: 11ch; margin-top: 18px; font-size: clamp(30px, 3.1vw, 46px); line-height: 1.08; font-weight: 600; letter-spacing: -.055em; }
+.product-copy > p:not(.product-view-label):not(.product-finish) { max-width: 32ch; margin-top: 20px; color: var(--muted); font-size: 18px; line-height: 1.55; }
+.product-controls { display: flex; gap: 8px; margin-top: 36px; }
+.product-controls button { min-width: 74px; min-height: 44px; padding: 0 16px; border: 1px solid #c8ccc5; border-radius: 999px; background: #fff; color: var(--muted); font-size: 14px; font-weight: 600; transition: color .2s, background .2s, border-color .2s, transform .2s; }
+.product-controls button:hover, .product-controls button.is-active { border-color: var(--moss); background: var(--moss); color: #fffdf8; }
+.product-controls button:hover { transform: translateY(-1px); }
+.product-controls button:focus-visible { outline: 3px solid #356d88; outline-offset: 4px; }
+.product-finish { margin-top: 22px; color: #737b70; font-size: 13px; }
+@keyframes product-view-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .product-image { animation: none; } }
 .problem { background: var(--paper); }
 .problem-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 40px auto 0; max-width: 1240px; }
 .problem-grid article { position: relative; padding-bottom: clamp(14px, 1.25vw, 22px); border-radius: 20px; transition: transform .35s ease, background .35s ease, box-shadow .35s ease; }
@@ -222,6 +243,13 @@ h1, h2, h3, p { margin: 0; }
   .section-panel { padding: 56px 24px; }
   .section-heading h2 { font-size: 32px; }
   .section-heading > p:last-child { font-size: 16px; }
+  .product-heading h2 { font-size: clamp(34px, 9vw, 44px); }
+  .product-grid { grid-template-columns: 1fr; margin-top: 36px; }
+  .product-viewer-stage { min-height: min(142vw, 600px); }
+  .product-image { width: min(90%, 420px); max-height: min(130vw, 560px); }
+  .product-copy { padding: 36px 12px 42px; text-align: center; }
+  .product-copy h3, .product-copy > p:not(.product-view-label):not(.product-finish) { margin-right: auto; margin-left: auto; }
+  .product-controls { justify-content: center; margin-top: 26px; }
   .problem-grid { grid-template-columns: 1fr; gap: 32px; }
   .problem-end { margin-top: 32px; }
   .steps-grid { grid-template-columns: 1fr; gap: 36px; }
