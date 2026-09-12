@@ -114,9 +114,29 @@ test('register requires matching email addresses before submitting', async ({ pa
   await dialog.getByRole('button', { name: 'Register' }).click();
   await dialog.getByLabel('Email', { exact: true }).fill('creator@example.com');
   await dialog.getByLabel('Confirm email').fill('other@example.com');
+  await dialog.getByLabel('Invitation code').fill('sparkvid');
   await dialog.getByLabel('Password').fill('secret1');
   await dialog.locator('form').getByRole('button', { name: 'Create account' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Email addresses do not match.');
+  expect(authRequests).toBe(0);
+});
+
+test('register requires a valid invitation code before submitting', async ({ page }) => {
+  let authRequests = 0;
+  await page.route('**/api/auth', async route => {
+    authRequests += 1;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Register' }).click();
+  await dialog.getByLabel('Email', { exact: true }).fill('creator@example.com');
+  await dialog.getByLabel('Confirm email').fill('creator@example.com');
+  await dialog.getByLabel('Invitation code').fill('wrong');
+  await dialog.getByLabel('Password').fill('secret1');
+  await dialog.locator('form').getByRole('button', { name: 'Create account' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Enter a valid invitation code.');
   expect(authRequests).toBe(0);
 });
 
@@ -189,7 +209,7 @@ test('closing the popup cancels a stale login request and clears credentials', a
 
 test('auth endpoint rejects malformed and cross-site submissions', async ({ request }) => {
   const malformed = await request.post('/api/auth', {
-    data: { mode: 'register', email: 'not-an-email', confirmEmail: 'not-an-email', password: 'secret1' },
+    data: { mode: 'register', email: 'not-an-email', confirmEmail: 'not-an-email', password: 'secret1', invitationCode: 'sparkvid' },
   });
   expect(malformed.status()).toBe(400);
   await expect(malformed.json()).resolves.toEqual({ error: 'Register with a valid email and a password of at least 6 characters.' });

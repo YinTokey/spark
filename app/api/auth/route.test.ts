@@ -38,7 +38,7 @@ test('password login stores the Supabase session in HTTP-only cookies', async ()
 test('password registration uses the Supabase signup endpoint', async () => {
   configureSupabase();
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({ access_token: 'access', refresh_token: 'refresh' }));
-  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1' }));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1', invitationCode: 'sparkvid' }));
   assert.equal(response.status, 200);
   assert.equal(fetchMock.mock.calls[0].arguments[0], 'https://project.supabase.co/auth/v1/signup');
 });
@@ -46,7 +46,7 @@ test('password registration uses the Supabase signup endpoint', async () => {
 test('registration without an immediate session asks for email confirmation', async () => {
   configureSupabase();
   mock.method(globalThis, 'fetch', async () => Response.json({ id: 'user-id', email: 'creator@example.com' }));
-  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1' }));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1', invitationCode: 'sparkvid' }));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { message: 'Check your email to finish registering.' });
 });
@@ -54,7 +54,7 @@ test('registration without an immediate session asks for email confirmation', as
 test('server rejects a short registration password before Supabase', async () => {
   configureSupabase();
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({}));
-  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: '12345' }));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: '12345', invitationCode: 'sparkvid' }));
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: 'Register with a valid email and a password of at least 6 characters.' });
   assert.equal(fetchMock.mock.callCount(), 0);
@@ -63,8 +63,17 @@ test('server rejects a short registration password before Supabase', async () =>
 test('server rejects mismatched registration emails before Supabase', async () => {
   configureSupabase();
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({}));
-  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'other@example.com', password: 'secret1' }));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'other@example.com', password: 'secret1', invitationCode: 'sparkvid' }));
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: 'Email addresses do not match.' });
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test('server rejects an invalid invitation code before Supabase', async () => {
+  configureSupabase();
+  const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json({}));
+  const response = await POST(authRequest({ mode: 'register', email: 'creator@example.com', confirmEmail: 'creator@example.com', password: 'secret1', invitationCode: 'wrong' }));
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'Enter a valid invitation code.' });
   assert.equal(fetchMock.mock.callCount(), 0);
 });

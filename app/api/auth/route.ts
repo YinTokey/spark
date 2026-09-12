@@ -8,7 +8,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AuthBody =
   | { mode: 'login'; email: string; password: string }
-  | { mode: 'register'; email: string; confirmEmail: string; password: string };
+  | { mode: 'register'; email: string; confirmEmail: string; password: string; invitationCode: string };
 
 function errorResponse(error: string, status: number) {
   return NextResponse.json({ error }, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -21,10 +21,10 @@ function parseAuthBody(value: unknown): AuthBody | null {
   const email = body.email.trim();
   if (!emailPattern.test(email) || email.length > 254 || body.password.length < 6 || body.password.length > 72) return null;
   if (body.mode === 'login') return { mode: 'login', email, password: body.password };
-  if (body.mode !== 'register' || typeof body.confirmEmail !== 'string') return null;
+  if (body.mode !== 'register' || typeof body.confirmEmail !== 'string' || body.invitationCode !== 'sparkvid') return null;
   const confirmEmail = body.confirmEmail.trim();
   if (!emailPattern.test(confirmEmail) || confirmEmail.length > 254 || confirmEmail !== email) return null;
-  return { mode: 'register', email, confirmEmail, password: body.password };
+  return { mode: 'register', email, confirmEmail, password: body.password, invitationCode: body.invitationCode };
 }
 
 function invalidInputMessage(value: unknown) {
@@ -33,6 +33,7 @@ function invalidInputMessage(value: unknown) {
   if (body.mode === 'register' && typeof body.email === 'string' && typeof body.confirmEmail === 'string' && body.email.trim() !== body.confirmEmail.trim()) {
     return 'Email addresses do not match.';
   }
+  if (body.mode === 'register' && body.invitationCode !== 'sparkvid') return 'Enter a valid invitation code.';
   if (body.mode === 'register') return 'Register with a valid email and a password of at least 6 characters.';
   if (typeof body.email !== 'string' || !emailPattern.test(body.email.trim()) || body.email.trim().length > 254) {
     return 'Enter a valid email address.';
